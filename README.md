@@ -68,7 +68,7 @@ configured using the `rewrite` functionality:
 that way all queries for services under domain cluster.target will be rewritten
 to match services on the local namespace that the services are mirrored.
 
-* note that <target> and <namespace> should be replaced with a name for the
+* note that `<target>` and `<namespace>` should be replaced with a name for the
 target cluster and the local namespace that contains the mirrored services.
 * note that the above example assumes that you are running the mirroring service
 with a prefix flag that matches the target cluster name.
