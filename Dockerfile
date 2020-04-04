@@ -4,6 +4,6 @@ COPY . /go/src/github.com/utilitywarehouse/kube-service-mirror
 ENV CGO_ENABLED 0
 RUN go build -o /kube-service-mirror .
 
-FROM alpine:3.10
+FROM alpine:3.11
 COPY --from=build /kube-service-mirror /kube-service-mirror
 CMD [ "/kube-service-mirror" ]
