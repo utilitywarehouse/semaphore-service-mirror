@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-service-mirror
+  labels:
+    app: kube-service-mirror
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kube-service-mirror
+  template:
+    metadata:
+      labels:
+        app: kube-service-mirror
+    spec:
+      serviceAccountName: kube-service-mirror
+      containers:
+        - name: kube-service-mirror
+          image: kube-service-mirror
+          command:
+            - /kube-service-mirror
+            - -log-level=info
+            - -target-kube-config=/etc/config/target-kubeconfig.yaml
+          volumeMounts:
+            - name: config
+              mountPath: /etc/config
+      volumes:
+        - name: config
+          secret:
+            secretName: kube-service-mirror-config
