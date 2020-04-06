@@ -6,4 +6,4 @@ resources:
 images:
   - name: kube-service-mirror
     newName: quay.io/utilitywarehouse/kube-service-mirror
-    newTag: master
+    newTag: v1.17.4-1
