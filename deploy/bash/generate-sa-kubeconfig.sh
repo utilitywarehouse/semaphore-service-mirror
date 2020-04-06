@@ -1,6 +1,6 @@
 #!/bin/bash
 
-read -p "Enter Kube Api Server: " server
+read -p "Enter Kube Api Server Address: " server
 read -p "Enter Kube Context: " ctx
 read -p "Enter Kube Service Account Namespace: " ns
 read -p "Enter Kube Service Account Token Secret Name: " name
