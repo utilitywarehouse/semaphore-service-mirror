@@ -21,32 +21,34 @@ var (
 type EndpointsEventHandler = func(eventType watch.EventType, old *v1.Endpoints, new *v1.Endpoints)
 
 type EndpointsWatcher struct {
-	client       kubernetes.Interface
-	resyncPeriod time.Duration
-	stopChannel  chan struct{}
-	store        cache.Store
-	controller   cache.Controller
-	eventHandler EndpointsEventHandler
+	client        kubernetes.Interface
+	resyncPeriod  time.Duration
+	stopChannel   chan struct{}
+	store         cache.Store
+	controller    cache.Controller
+	eventHandler  EndpointsEventHandler
+	labelSelector string
 }
 
-func NewEndpointsWatcher(client kubernetes.Interface, resyncPeriod time.Duration, handler EndpointsEventHandler) *EndpointsWatcher {
+func NewEndpointsWatcher(client kubernetes.Interface, resyncPeriod time.Duration, handler EndpointsEventHandler, labelSelector string) *EndpointsWatcher {
 	return &EndpointsWatcher{
-		client:       client,
-		resyncPeriod: resyncPeriod,
-		stopChannel:  make(chan struct{}),
-		eventHandler: handler,
+		client:        client,
+		resyncPeriod:  resyncPeriod,
+		stopChannel:   make(chan struct{}),
+		eventHandler:  handler,
+		labelSelector: labelSelector,
 	}
 }
 
 func (ew *EndpointsWatcher) Init() {
 	listWatch := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-			// "" will get endpoints from all namespaces
-			return ew.client.CoreV1().Endpoints("").List(options)
+			options.LabelSelector = ew.labelSelector
+			return ew.client.CoreV1().Endpoints(metav1.NamespaceAll).List(options)
 		},
 		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-			// "" will get endpoints from all namespaces
-			return ew.client.CoreV1().Endpoints("").Watch(options)
+			options.LabelSelector = ew.labelSelector
+			return ew.client.CoreV1().Endpoints(metav1.NamespaceAll).Watch(options)
 		},
 	}
 	eventHandler := cache.ResourceEventHandlerFuncs{
