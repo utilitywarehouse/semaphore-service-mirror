@@ -13,10 +13,11 @@ import (
 var (
 	flagKubeConfigPath       = flag.String("kube-config", "", "Path of a kube config file, if not provided the app will try to get in cluster config")
 	flagTargetKubeConfigPath = flag.String("target-kube-config", "", "(required) Path of the target cluster kube config file to mirrot services from")
-	flagLogLevel             = flag.String("log-level", "info", "log level, defaults to info")
+	flagLogLevel             = flag.String("log-level", "info", "Log level, defaults to info")
 	flagResyncPeriod         = flag.Duration("resync-period", 60*time.Minute, "Namespace watcher cache resync period")
-	flagMirrorNamespace      = flag.String("mirror-ns", "", "the namespace to create dummy mirror services in")
-	flagSvcPrefix            = flag.String("svc-prefix", "", "a prefix to apply on all mirrored services names")
+	flagMirrorNamespace      = flag.String("mirror-ns", "", "The namespace to create dummy mirror services in")
+	flagSvcPrefix            = flag.String("svc-prefix", "", "A prefix to apply on all mirrored services names")
+	flagLabelSelector        = flag.String("label-selector", "", "(required) Label of services and endpoints to watch and mirror")
 )
 
 func usage() {
@@ -29,6 +30,10 @@ func main() {
 	flag.Parse()
 
 	if *flagTargetKubeConfigPath == "" {
+		usage()
+	}
+
+	if *flagLabelSelector == "" {
 		usage()
 	}
 
@@ -58,6 +63,7 @@ func main() {
 		watchClient,
 		*flagMirrorNamespace,
 		*flagSvcPrefix,
+		*flagLabelSelector,
 		// Resync will trigger an onUpdate event for everything that is
 		// stored in cache.
 		*flagResyncPeriod,

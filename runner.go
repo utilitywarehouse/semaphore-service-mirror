@@ -24,9 +24,10 @@ type Runner struct {
 	endpointsWatcher *kube.EndpointsWatcher
 	namespace        string
 	prefix           string
+	labelselector    string
 }
 
-func NewRunner(client, watchClient kubernetes.Interface, namespace, prefix string, resyncPeriod time.Duration) *Runner {
+func NewRunner(client, watchClient kubernetes.Interface, namespace, prefix, labelselector string, resyncPeriod time.Duration) *Runner {
 	runner := &Runner{
 		client:    client,
 		namespace: namespace,
@@ -38,6 +39,7 @@ func NewRunner(client, watchClient kubernetes.Interface, namespace, prefix strin
 		watchClient,
 		resyncPeriod,
 		runner.ServiceEventHandler,
+		labelselector,
 	)
 	runner.serviceWatcher = serviceWatcher
 	runner.serviceWatcher.Init()
@@ -47,18 +49,12 @@ func NewRunner(client, watchClient kubernetes.Interface, namespace, prefix strin
 		watchClient,
 		resyncPeriod,
 		runner.EndpointsEventHandler,
+		labelselector,
 	)
 	runner.endpointsWatcher = endpointsWatcher
 	runner.endpointsWatcher.Init()
 
 	return runner
-}
-
-func isServiceClusterIP(kubeService *v1.Service) bool {
-	if kubeService.Spec.Type != "ClusterIP" {
-		return false
-	}
-	return true
 }
 
 func (r *Runner) Run() error {
@@ -90,6 +86,8 @@ func (r *Runner) getService(name, namespace string) (*v1.Service, error) {
 }
 
 func (r *Runner) createService(name, namespace string, labels map[string]string, ports []v1.ServicePort) (*v1.Service, error) {
+	// Always create clusterIP type (default type) services. There is no
+	// reason to create anything else for the purpose of mirroring
 	return r.client.CoreV1().Services(r.namespace).Create(
 		&v1.Service{
 			ObjectMeta: metav1.ObjectMeta{
@@ -113,9 +111,6 @@ func (r *Runner) updateService(service *v1.Service, ports []v1.ServicePort) (*v1
 }
 
 func (r *Runner) onServiceAdd(new *v1.Service) {
-	if !isServiceClusterIP(new) {
-		return
-	}
 	name := r.generateMirrorName(new.Name, new.Namespace)
 
 	svc, err := r.getService(name, r.namespace)
@@ -150,9 +145,6 @@ func (r *Runner) onServiceAdd(new *v1.Service) {
 }
 
 func (r *Runner) onServiceModify(new *v1.Service) {
-	if !isServiceClusterIP(new) {
-		return
-	}
 	name := r.generateMirrorName(new.Name, new.Namespace)
 	svc, err := r.getService(name, r.namespace)
 	if err != nil {
@@ -174,9 +166,6 @@ func (r *Runner) onServiceModify(new *v1.Service) {
 }
 
 func (r *Runner) onServiceDelete(old *v1.Service) {
-	if !isServiceClusterIP(old) {
-		return
-	}
 	name := r.generateMirrorName(old.Name, old.Namespace)
 	err := r.client.CoreV1().Services(r.namespace).Delete(
 		name,
@@ -239,19 +228,8 @@ func (r *Runner) updateEndpoints(name, namespace string, labels map[string]strin
 }
 
 func (r *Runner) onEndpointsAdd(new *v1.Endpoints) {
-	kubeService, err := r.serviceWatcher.Get(new.Name)
-	if err != nil {
-		log.Logger.Debug(
-			"cannot find service: %s in store\n",
-			new.Name,
-		)
-		return
-	}
-	if !isServiceClusterIP(kubeService) {
-		return
-	}
 	name := r.generateMirrorName(new.Name, new.Namespace)
-	_, err = r.getEndpoints(name, r.namespace)
+	_, err := r.getEndpoints(name, r.namespace)
 	if err != nil {
 		log.Logger.Info(
 			"cannot get endpoints will try to create",
@@ -282,19 +260,8 @@ func (r *Runner) onEndpointsAdd(new *v1.Endpoints) {
 }
 
 func (r *Runner) onEndpointsModify(new *v1.Endpoints) {
-	kubeService, err := r.serviceWatcher.Get(new.Name)
-	if err != nil {
-		log.Logger.Debug(
-			"cannot find service: %s in store\n",
-			new.Name,
-		)
-		return
-	}
-	if !isServiceClusterIP(kubeService) {
-		return
-	}
 	name := r.generateMirrorName(new.Name, new.Namespace)
-	_, err = r.updateEndpoints(name, r.namespace, CommonLabels, new.Subsets)
+	_, err := r.updateEndpoints(name, r.namespace, CommonLabels, new.Subsets)
 	if err != nil {
 		log.Logger.Error(
 			"failed to update mirror endpoints",
@@ -306,19 +273,8 @@ func (r *Runner) onEndpointsModify(new *v1.Endpoints) {
 }
 
 func (r *Runner) onEndpointsDelete(old *v1.Endpoints) {
-	kubeService, err := r.serviceWatcher.Get(old.Name)
-	if err != nil {
-		log.Logger.Info(
-			"cannot find service: %s in store\n",
-			old.Name,
-		)
-		return
-	}
-	if !isServiceClusterIP(kubeService) {
-		return
-	}
 	name := r.generateMirrorName(old.Name, old.Namespace)
-	err = r.client.CoreV1().Endpoints(r.namespace).Delete(
+	err := r.client.CoreV1().Endpoints(r.namespace).Delete(
 		name,
 		&metav1.DeleteOptions{},
 	)
