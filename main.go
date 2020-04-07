@@ -2,8 +2,8 @@ package main
 
 import (
 	"flag"
+	"net/http"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/utilitywarehouse/kube-service-mirror/kube"
@@ -68,10 +68,18 @@ func main() {
 		// stored in cache.
 		*flagResyncPeriod,
 	)
-	runner.Run()
+	go runner.Run()
 
-	// Hold forever
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	wg.Wait()
+	sm := http.NewServeMux()
+	sm.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+		if runner.Healthy() {
+			w.WriteHeader(http.StatusOK)
+		} else {
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}
+	})
+	log.Logger.Error(
+		"Listen and Serve",
+		"err", http.ListenAndServe(":8080", sm),
+	)
 }

@@ -22,6 +22,15 @@ spec:
             - /kube-service-mirror
             - -log-level=info
             - -target-kube-config=/etc/config/target-kubeconfig.yaml
+          ports:
+          - name: readiness-port
+            containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: readiness-port
+            periodSeconds: 10
+            failureThreshold: 1
           volumeMounts:
             - name: config
               mountPath: /etc/config

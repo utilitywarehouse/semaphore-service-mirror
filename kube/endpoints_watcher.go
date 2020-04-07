@@ -28,6 +28,8 @@ type EndpointsWatcher struct {
 	controller    cache.Controller
 	eventHandler  EndpointsEventHandler
 	labelSelector string
+	ListHealthy   bool
+	WatchHealthy  bool
 }
 
 func NewEndpointsWatcher(client kubernetes.Interface, resyncPeriod time.Duration, handler EndpointsEventHandler, labelSelector string) *EndpointsWatcher {
@@ -44,11 +46,25 @@ func (ew *EndpointsWatcher) Init() {
 	listWatch := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			options.LabelSelector = ew.labelSelector
-			return ew.client.CoreV1().Endpoints(metav1.NamespaceAll).List(options)
+			l, err := ew.client.CoreV1().Endpoints(metav1.NamespaceAll).List(options)
+			if err != nil {
+				log.Logger.Error("ew: list error", "err", err)
+				ew.ListHealthy = false
+			} else {
+				ew.ListHealthy = true
+			}
+			return l, err
 		},
 		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 			options.LabelSelector = ew.labelSelector
-			return ew.client.CoreV1().Endpoints(metav1.NamespaceAll).Watch(options)
+			w, err := ew.client.CoreV1().Endpoints(metav1.NamespaceAll).Watch(options)
+			if err != nil {
+				log.Logger.Error("ew: watch error", "err", err)
+				ew.WatchHealthy = false
+			} else {
+				ew.WatchHealthy = true
+			}
+			return w, err
 		},
 	}
 	eventHandler := cache.ResourceEventHandlerFuncs{
@@ -90,4 +106,11 @@ func (ew *EndpointsWatcher) Get(name string) (*v1.Endpoints, error) {
 		}
 	}
 	return &v1.Endpoints{}, ERROR_ENDPOINTS_NOT_EXIST
+}
+
+func (ew *EndpointsWatcher) Healthy() bool {
+	if ew.ListHealthy && ew.WatchHealthy {
+		return true
+	}
+	return false
 }
