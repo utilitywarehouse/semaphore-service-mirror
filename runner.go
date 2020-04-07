@@ -58,7 +58,7 @@ func NewRunner(client, watchClient kubernetes.Interface, namespace, prefix, labe
 }
 
 func (r *Runner) Run() error {
-	go r.serviceWatcher.Start()
+	go r.serviceWatcher.Run()
 	// wait for service watcher to sync before starting the endpoints to
 	// avoid race between them. TODO: atm dummy and could run forever if
 	// serviceis cache fails to sync
@@ -67,7 +67,7 @@ func (r *Runner) Run() error {
 		return fmt.Errorf("failed to wait for service caches to sync")
 	}
 
-	go r.endpointsWatcher.Start()
+	go r.endpointsWatcher.Run()
 	return nil
 }
 
