@@ -65,7 +65,7 @@ func (ew *EndpointsWatcher) Init() {
 	ew.store, ew.controller = cache.NewInformer(listWatch, &v1.Endpoints{}, ew.resyncPeriod, eventHandler)
 }
 
-func (ew *EndpointsWatcher) Start() {
+func (ew *EndpointsWatcher) Run() {
 	log.Logger.Info("starting endpoints watcher")
 	// Running controller will block until writing on the stop channel.
 	ew.controller.Run(ew.stopChannel)

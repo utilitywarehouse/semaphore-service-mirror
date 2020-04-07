@@ -65,7 +65,7 @@ func (sw *ServiceWatcher) Init() {
 	sw.store, sw.controller = cache.NewInformer(listWatch, &v1.Service{}, sw.resyncPeriod, eventHandler)
 }
 
-func (sw *ServiceWatcher) Start() {
+func (sw *ServiceWatcher) Run() {
 	log.Logger.Info("starting service watcher")
 	// Running controller will block until writing on the stop channel.
 	sw.controller.Run(sw.stopChannel)
