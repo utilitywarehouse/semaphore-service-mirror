@@ -28,6 +28,8 @@ type ServiceWatcher struct {
 	controller    cache.Controller
 	eventHandler  ServiceEventHandler
 	labelSelector string
+	ListHealthy   bool
+	WatchHealthy  bool
 }
 
 func NewServiceWatcher(client kubernetes.Interface, resyncPeriod time.Duration, handler ServiceEventHandler, labelSelector string) *ServiceWatcher {
@@ -44,11 +46,25 @@ func (sw *ServiceWatcher) Init() {
 	listWatch := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			options.LabelSelector = sw.labelSelector
-			return sw.client.CoreV1().Services(metav1.NamespaceAll).List(options)
+			l, err := sw.client.CoreV1().Services(metav1.NamespaceAll).List(options)
+			if err != nil {
+				log.Logger.Error("sw: list error", "err", err)
+				sw.ListHealthy = false
+			} else {
+				sw.ListHealthy = true
+			}
+			return l, err
 		},
 		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 			options.LabelSelector = sw.labelSelector
-			return sw.client.CoreV1().Services(metav1.NamespaceAll).Watch(options)
+			w, err := sw.client.CoreV1().Services(metav1.NamespaceAll).Watch(options)
+			if err != nil {
+				log.Logger.Error("sw: watch error", "err", err)
+				sw.WatchHealthy = false
+			} else {
+				sw.WatchHealthy = true
+			}
+			return w, err
 		},
 	}
 	eventHandler := cache.ResourceEventHandlerFuncs{
@@ -95,4 +111,11 @@ func (sw *ServiceWatcher) Get(name string) (*v1.Service, error) {
 	}
 	return &v1.Service{}, ERROR_SVC_NOT_EXISTS
 
+}
+
+func (sw *ServiceWatcher) Healthy() bool {
+	if sw.ListHealthy && sw.WatchHealthy {
+		return true
+	}
+	return false
 }

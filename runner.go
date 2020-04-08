@@ -303,3 +303,10 @@ func (r *Runner) EndpointsEventHandler(eventType watch.EventType, old *v1.Endpoi
 		)
 	}
 }
+
+func (r *Runner) Healthy() bool {
+	if r.serviceWatcher.Healthy() && r.endpointsWatcher.Healthy() {
+		return true
+	}
+	return false
+}
