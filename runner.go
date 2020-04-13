@@ -85,6 +85,13 @@ func (r *Runner) getService(name, namespace string) (*v1.Service, error) {
 	)
 }
 
+func isHeadless(svc *v1.Service) bool {
+	if svc.Spec.ClusterIP == "None" {
+		return true
+	}
+	return false
+}
+
 func (r *Runner) createService(name, namespace string, labels map[string]string, ports []v1.ServicePort, headless bool) (*v1.Service, error) {
 	// Create clusterIP or headless type services. There is no reason to
 	// create anything with an external ip.
@@ -105,10 +112,13 @@ func (r *Runner) createService(name, namespace string, labels map[string]string,
 	return r.client.CoreV1().Services(r.namespace).Create(svc)
 }
 
-func (r *Runner) updateService(service *v1.Service, ports []v1.ServicePort) (*v1.Service, error) {
+func (r *Runner) updateService(service *v1.Service, ports []v1.ServicePort, headless bool) (*v1.Service, error) {
 	// only meaningful update on mirror service should be on ports
 	service.Spec.Ports = ports
 	service.Spec.Selector = nil
+	if headless {
+		service.Spec.ClusterIP = "None"
+	}
 
 	return r.client.CoreV1().Services(r.namespace).Update(service)
 }
@@ -123,11 +133,7 @@ func (r *Runner) onServiceAdd(new *v1.Service) {
 			"service", name,
 		)
 
-		headless := false
-		if new.Spec.ClusterIP == "None" {
-			headless = true
-		}
-		_, err := r.createService(name, r.namespace, CommonLabels, new.Spec.Ports, headless)
+		_, err := r.createService(name, r.namespace, CommonLabels, new.Spec.Ports, isHeadless(new))
 		if err != nil {
 			log.Logger.Error(
 				"failed to create mirror service",
@@ -140,7 +146,7 @@ func (r *Runner) onServiceAdd(new *v1.Service) {
 			"service already there will try updating",
 			"service", name,
 		)
-		_, err := r.updateService(svc, new.Spec.Ports)
+		_, err := r.updateService(svc, new.Spec.Ports, isHeadless(new))
 		if err != nil {
 			log.Logger.Error(
 				"failed to update existing mirror service on add",
@@ -162,7 +168,7 @@ func (r *Runner) onServiceModify(new *v1.Service) {
 		)
 		return
 	}
-	_, err = r.updateService(svc, new.Spec.Ports)
+	_, err = r.updateService(svc, new.Spec.Ports, isHeadless(new))
 	if err != nil {
 		log.Logger.Error(
 			"failed to update mirror service",
