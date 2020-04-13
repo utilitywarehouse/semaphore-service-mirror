@@ -112,13 +112,11 @@ func (r *Runner) createService(name, namespace string, labels map[string]string,
 	return r.client.CoreV1().Services(r.namespace).Create(svc)
 }
 
-func (r *Runner) updateService(service *v1.Service, ports []v1.ServicePort, headless bool) (*v1.Service, error) {
-	// only meaningful update on mirror service should be on ports
+func (r *Runner) updateService(service *v1.Service, ports []v1.ServicePort) (*v1.Service, error) {
+	// only meaningful update on mirror service should be on ports, no need
+	// to cater for headless as clusterIP field is immutable
 	service.Spec.Ports = ports
 	service.Spec.Selector = nil
-	if headless {
-		service.Spec.ClusterIP = "None"
-	}
 
 	return r.client.CoreV1().Services(r.namespace).Update(service)
 }
@@ -146,7 +144,7 @@ func (r *Runner) onServiceAdd(new *v1.Service) {
 			"service already there will try updating",
 			"service", name,
 		)
-		_, err := r.updateService(svc, new.Spec.Ports, isHeadless(new))
+		_, err := r.updateService(svc, new.Spec.Ports)
 		if err != nil {
 			log.Logger.Error(
 				"failed to update existing mirror service on add",
@@ -168,7 +166,7 @@ func (r *Runner) onServiceModify(new *v1.Service) {
 		)
 		return
 	}
-	_, err = r.updateService(svc, new.Spec.Ports, isHeadless(new))
+	_, err = r.updateService(svc, new.Spec.Ports)
 	if err != nil {
 		log.Logger.Error(
 			"failed to update mirror service",

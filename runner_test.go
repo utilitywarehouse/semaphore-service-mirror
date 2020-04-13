@@ -190,27 +190,4 @@ func TestModifyService(t *testing.T) {
 		Spec:      expectedSpec,
 	}}
 	assertExpectedServices(t, expectedSvcs, fakeClient)
-
-	// Test update to headless
-	testSvc.Spec.ClusterIP = "None"
-
-	testRunner.ServiceEventHandler(watch.Modified, &v1.Service{}, testSvc)
-
-	svcs, err = fakeClient.CoreV1().Services("").List(
-		metav1.ListOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expectedSpec = TestSpec{
-		Ports:     updatePorts,
-		ClusterIP: "None",
-		Selector:  nil,
-	}
-	expectedSvcs = []TestSvc{TestSvc{
-		Name:      "test-svc-remote-ns",
-		Namespace: "local-ns",
-		Spec:      expectedSpec,
-	}}
-	assertExpectedServices(t, expectedSvcs, fakeClient)
 }
