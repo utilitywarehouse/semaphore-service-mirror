@@ -32,8 +32,8 @@ configured using the `rewrite` functionality:
         errors
 	health
         rewrite continue {
-                name regex ([a-zA-Z0-9-_]*)\.([a-zv0-9-_]*)\.svc\.cluster\.<target> <target>-{1}-{2}.<namespace>.svc.cluster.local
-                answer name <target>-([a-zA-Z0-9-_]*)-([a-zA-Z0-9-_]*)\.<namespace>\.svc\.cluster\.local {1}.{2}.svc.cluster.<target>
+                name regex ([a-zA-Z0-9-_]*)\.([a-zv0-9-_]*)\.svc\.cluster\.<target> <target>-{1}-6d61657368-{2}.<namespace>.svc.cluster.local
+                answer name <target>-([a-zA-Z0-9-_]*)-6d61657368-([a-zA-Z0-9-_]*)\.<namespace>\.svc\.cluster\.local {1}.{2}.svc.cluster.<target>
         }
         kubernetes cluster.local in-addr.arpa ip6.arpa {
           pods insecure

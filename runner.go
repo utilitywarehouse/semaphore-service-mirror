@@ -18,6 +18,10 @@ var (
 	CommonLabels = map[string]string{"mirrored-svc": "true"}
 )
 
+const (
+	SEPARATOR = "6d61657368"
+)
+
 type Runner struct {
 	client           kubernetes.Interface
 	serviceWatcher   *kube.ServiceWatcher
@@ -73,9 +77,9 @@ func (r *Runner) Run() error {
 
 func (r *Runner) generateMirrorName(name, namespace string) string {
 	if r.prefix != "" {
-		return fmt.Sprintf("%s-%s-%s", r.prefix, name, namespace)
+		return fmt.Sprintf("%s-%s-%s-%s", r.prefix, name, SEPARATOR, namespace)
 	}
-	return fmt.Sprintf("%s-%s", name, namespace)
+	return fmt.Sprintf("%s-%s-%s", name, SEPARATOR, namespace)
 }
 
 func (r *Runner) getService(name, namespace string) (*v1.Service, error) {
