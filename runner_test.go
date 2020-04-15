@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -75,7 +76,7 @@ func TestAddService(t *testing.T) {
 		Selector:  nil,
 	}
 	expectedSvcs := []TestSvc{TestSvc{
-		Name:      "test-svc-remote-ns",
+		Name:      fmt.Sprintf("test-svc-%s-remote-ns", SEPARATOR),
 		Namespace: "local-ns",
 		Spec:      expectedSpec,
 	}}
@@ -98,7 +99,7 @@ func TestAddService(t *testing.T) {
 		Selector:  nil,
 	}
 	expectedSvcs = []TestSvc{TestSvc{
-		Name:      "test-svc-remote-ns",
+		Name:      fmt.Sprintf("test-svc-%s-remote-ns", SEPARATOR),
 		Namespace: "local-ns",
 		Spec:      expectedSpec,
 	}}
@@ -116,7 +117,7 @@ func TestAddService(t *testing.T) {
 		Selector:  nil,
 	}
 	expectedSvcs = []TestSvc{TestSvc{
-		Name:      "test-svc-remote-ns",
+		Name:      fmt.Sprintf("test-svc-%s-remote-ns", SEPARATOR),
 		Namespace: "local-ns",
 		Spec:      expectedSpec,
 	}}
@@ -145,7 +146,7 @@ func TestModifyService(t *testing.T) {
 	// Create mirrored service and feed it to the fake client
 	mirroredSvc := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-svc-remote-ns",
+			Name:      fmt.Sprintf("test-svc-%s-remote-ns", SEPARATOR),
 			Namespace: "local-ns",
 			Labels:    CommonLabels,
 		},
@@ -185,7 +186,7 @@ func TestModifyService(t *testing.T) {
 		Selector:  nil,
 	}
 	expectedSvcs := []TestSvc{TestSvc{
-		Name:      "test-svc-remote-ns",
+		Name:      fmt.Sprintf("test-svc-%s-remote-ns", SEPARATOR),
 		Namespace: "local-ns",
 		Spec:      expectedSpec,
 	}}

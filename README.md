@@ -22,6 +22,18 @@ Usage of ./kube-service-mirror:
         (required) Path of the target cluster kube config file to mirrot services from
 ```
 
+## Generating mirrored service names
+
+In order to make regex matching easier for dns rewrite purposes (see coredns
+example bellow) we use a hardcoded separator between service names and
+namespaces on the generated name for mirrored service.
+We picked that to be `6d6972726f720a` from the hexdump of `mirror`:
+
+```
+$ echo mirror | xxd -p
+6d6972726f720a
+```
+
 ## Coredns config example
 
 To create a smoother experience when accessing a service coredns can be
@@ -32,8 +44,8 @@ configured using the `rewrite` functionality:
         errors
 	health
         rewrite continue {
-                name regex ([a-zA-Z0-9-_]*)\.([a-zv0-9-_]*)\.svc\.cluster\.<target> <target>-{1}-{2}.<namespace>.svc.cluster.local
-                answer name <target>-([a-zA-Z0-9-_]*)-([a-zA-Z0-9-_]*)\.<namespace>\.svc\.cluster\.local {1}.{2}.svc.cluster.<target>
+                name regex ([a-zA-Z0-9-_]*)\.([a-zv0-9-_]*)\.svc\.cluster\.<target> <target>-{1}-6d6972726f720a-{2}.<namespace>.svc.cluster.local
+                answer name <target>-([a-zA-Z0-9-_]*)-6d6972726f720a-([a-zA-Z0-9-_]*)\.<namespace>\.svc\.cluster\.local {1}.{2}.svc.cluster.<target>
         }
         kubernetes cluster.local in-addr.arpa ip6.arpa {
           pods insecure
