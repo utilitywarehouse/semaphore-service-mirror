@@ -85,25 +85,36 @@ func (r *Runner) getService(name, namespace string) (*v1.Service, error) {
 	)
 }
 
-func (r *Runner) createService(name, namespace string, labels map[string]string, ports []v1.ServicePort) (*v1.Service, error) {
-	// Always create clusterIP type (default type) services. There is no
-	// reason to create anything else for the purpose of mirroring
-	return r.client.CoreV1().Services(r.namespace).Create(
-		&v1.Service{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
-				Namespace: namespace,
-				Labels:    labels,
-			},
-			Spec: v1.ServiceSpec{
-				Ports:    ports,
-				Selector: nil,
-			},
-		})
+func isHeadless(svc *v1.Service) bool {
+	if svc.Spec.ClusterIP == "None" {
+		return true
+	}
+	return false
+}
+
+func (r *Runner) createService(name, namespace string, labels map[string]string, ports []v1.ServicePort, headless bool) (*v1.Service, error) {
+	// Create clusterIP or headless type services. There is no reason to
+	// create anything with an external ip.
+	svc := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels:    labels,
+		},
+		Spec: v1.ServiceSpec{
+			Ports:    ports,
+			Selector: nil,
+		},
+	}
+	if headless {
+		svc.Spec.ClusterIP = "None"
+	}
+	return r.client.CoreV1().Services(r.namespace).Create(svc)
 }
 
 func (r *Runner) updateService(service *v1.Service, ports []v1.ServicePort) (*v1.Service, error) {
-	// only meaningful update on mirror service should be on ports
+	// only meaningful update on mirror service should be on ports, no need
+	// to cater for headless as clusterIP field is immutable
 	service.Spec.Ports = ports
 	service.Spec.Selector = nil
 
@@ -119,7 +130,8 @@ func (r *Runner) onServiceAdd(new *v1.Service) {
 			"cannot get service will try to create",
 			"service", name,
 		)
-		_, err := r.createService(name, r.namespace, CommonLabels, new.Spec.Ports)
+
+		_, err := r.createService(name, r.namespace, CommonLabels, new.Spec.Ports, isHeadless(new))
 		if err != nil {
 			log.Logger.Error(
 				"failed to create mirror service",
