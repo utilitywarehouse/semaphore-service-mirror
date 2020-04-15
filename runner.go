@@ -19,7 +19,7 @@ var (
 )
 
 const (
-	SEPARATOR = "6d61657368"
+	SEPARATOR = "6d6972726f720a"
 )
 
 type Runner struct {
