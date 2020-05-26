@@ -148,7 +148,7 @@ func TestModifyService(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("test-svc-%s-remote-ns", SEPARATOR),
 			Namespace: "local-ns",
-			Labels:    CommonLabels,
+			Labels:    MirrorLabels,
 		},
 		Spec: v1.ServiceSpec{
 			Ports:    testPorts,

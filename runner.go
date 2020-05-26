@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	CommonLabels = map[string]string{"mirrored-svc": "true"}
+	MirrorLabels = map[string]string{"mirrored-svc": "true"}
 )
 
 const (
@@ -76,6 +76,7 @@ func (r *Runner) Run() error {
 
 	// After services store syncs, perform a sync to delete stale mirrors
 	if r.sync {
+		log.Logger.Info("Syncing services")
 		if err := r.serviceSync(); err != nil {
 			log.Logger.Warn(
 				"Error syncing services, skipping..",
@@ -133,7 +134,7 @@ func (r *Runner) serviceSync() error {
 	}
 
 	labelSelector := &metav1.LabelSelector{
-		MatchLabels: CommonLabels,
+		MatchLabels: MirrorLabels,
 	}
 	options := metav1.ListOptions{
 		LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
@@ -149,6 +150,8 @@ func (r *Runner) serviceSync() error {
 				"Deleting old service and related endpoint",
 				"service", svc.Name,
 			)
+			// Deleting a service should also clear the related
+			// endpoints
 			err := r.client.CoreV1().Services(r.namespace).Delete(
 				svc.Name,
 				&metav1.DeleteOptions{},
@@ -161,18 +164,6 @@ func (r *Runner) serviceSync() error {
 				)
 				return err
 			}
-			err = r.client.CoreV1().Endpoints(r.namespace).Delete(
-				svc.Name,
-				&metav1.DeleteOptions{},
-			)
-			if err != nil {
-				log.Logger.Error(
-					"Error clearing endpoints",
-					"endpoints", svc.Name,
-					"err", err,
-				)
-			}
-
 		}
 	}
 	return nil
@@ -217,7 +208,7 @@ func (r *Runner) onServiceAdd(new *v1.Service) {
 			"service", name,
 		)
 
-		_, err := r.createService(name, r.namespace, CommonLabels, new.Spec.Ports, isHeadless(new))
+		_, err := r.createService(name, r.namespace, MirrorLabels, new.Spec.Ports, isHeadless(new))
 		if err != nil {
 			log.Logger.Error(
 				"failed to create mirror service",
@@ -333,7 +324,7 @@ func (r *Runner) onEndpointsAdd(new *v1.Endpoints) {
 			"cannot get endpoints will try to create",
 			"endpoints", name,
 		)
-		_, err = r.createEndpoints(name, r.namespace, CommonLabels, new.Subsets)
+		_, err = r.createEndpoints(name, r.namespace, MirrorLabels, new.Subsets)
 		if err != nil {
 			log.Logger.Error(
 				"failed to create mirror endpoints",
@@ -346,7 +337,7 @@ func (r *Runner) onEndpointsAdd(new *v1.Endpoints) {
 			"endpoints found will try to update",
 			"endpoints", name,
 		)
-		_, err = r.updateEndpoints(name, r.namespace, CommonLabels, new.Subsets)
+		_, err = r.updateEndpoints(name, r.namespace, MirrorLabels, new.Subsets)
 		if err != nil {
 			log.Logger.Error(
 				"failed to update mirror endpoints",
@@ -359,7 +350,7 @@ func (r *Runner) onEndpointsAdd(new *v1.Endpoints) {
 
 func (r *Runner) onEndpointsModify(new *v1.Endpoints) {
 	name := r.generateMirrorName(new.Name, new.Namespace)
-	_, err := r.updateEndpoints(name, r.namespace, CommonLabels, new.Subsets)
+	_, err := r.updateEndpoints(name, r.namespace, MirrorLabels, new.Subsets)
 	if err != nil {
 		log.Logger.Error(
 			"failed to update mirror endpoints",

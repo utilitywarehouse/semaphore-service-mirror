@@ -42,7 +42,7 @@ func main() {
 		usage()
 	}
 	// Create a label to help syncing on startup
-	CommonLabels["mirror-svc-prefix-sync"] = *flagSvcPrefix
+	MirrorLabels["mirror-svc-prefix-sync"] = *flagSvcPrefix
 
 	log.InitLogger("kube-service-mirror", *flagLogLevel)
 
