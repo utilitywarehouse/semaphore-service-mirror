@@ -77,7 +77,7 @@ func (r *Runner) Run() error {
 	// After services store syncs, perform a sync to delete stale mirrors
 	if r.sync {
 		log.Logger.Info("Syncing services")
-		if err := r.serviceSync(); err != nil {
+		if err := r.ServiceSync(); err != nil {
 			log.Logger.Warn(
 				"Error syncing services, skipping..",
 				"err", err,
@@ -87,6 +87,11 @@ func (r *Runner) Run() error {
 
 	go r.endpointsWatcher.Run()
 	return nil
+}
+
+func (r *Runner) Stop() {
+	r.serviceWatcher.Stop()
+	r.endpointsWatcher.Stop()
 }
 
 func (r *Runner) generateMirrorName(name, namespace string) string {
@@ -119,7 +124,7 @@ func isInList(s string, l []string) bool {
 	return false
 }
 
-func (r *Runner) serviceSync() error {
+func (r *Runner) ServiceSync() error {
 	storeSvcs, err := r.serviceWatcher.List()
 	if err != nil {
 		return err

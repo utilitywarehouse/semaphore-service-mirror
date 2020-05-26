@@ -77,6 +77,7 @@ func main() {
 		*flagSvcSync,
 	)
 	go runner.Run()
+	defer runner.Stop()
 
 	sm := http.NewServeMux()
 	sm.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
