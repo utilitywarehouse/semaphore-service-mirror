@@ -6,6 +6,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -29,13 +30,15 @@ type Runner struct {
 	namespace        string
 	prefix           string
 	labelselector    string
+	sync             bool
 }
 
-func NewRunner(client, watchClient kubernetes.Interface, namespace, prefix, labelselector string, resyncPeriod time.Duration) *Runner {
+func NewRunner(client, watchClient kubernetes.Interface, namespace, prefix, labelselector string, resyncPeriod time.Duration, sync bool) *Runner {
 	runner := &Runner{
 		client:    client,
 		namespace: namespace,
 		prefix:    prefix,
+		sync:      sync,
 	}
 
 	// Create and initialize a service wathcer
@@ -71,6 +74,16 @@ func (r *Runner) Run() error {
 		return fmt.Errorf("failed to wait for service caches to sync")
 	}
 
+	// After services store syncs, perform a sync to delete stale mirrors
+	if r.sync {
+		if err := r.serviceSync(); err != nil {
+			log.Logger.Warn(
+				"Error syncing services, skipping..",
+				"err", err,
+			)
+		}
+	}
+
 	go r.endpointsWatcher.Run()
 	return nil
 }
@@ -94,6 +107,75 @@ func isHeadless(svc *v1.Service) bool {
 		return true
 	}
 	return false
+}
+
+func isInList(s string, l []string) bool {
+	for _, el := range l {
+		if el == s {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Runner) serviceSync() error {
+	storeSvcs, err := r.serviceWatcher.List()
+	if err != nil {
+		return err
+	}
+
+	mirrorSvcList := []string{}
+	for _, svc := range storeSvcs {
+		mirrorSvcList = append(
+			mirrorSvcList,
+			r.generateMirrorName(svc.Name, svc.Namespace),
+		)
+	}
+
+	labelSelector := &metav1.LabelSelector{
+		MatchLabels: CommonLabels,
+	}
+	options := metav1.ListOptions{
+		LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
+	}
+	currSvcs, err := r.client.CoreV1().Services(r.namespace).List(options)
+	if err != nil {
+		return err
+	}
+
+	for _, svc := range currSvcs.Items {
+		if !isInList(svc.Name, mirrorSvcList) {
+			log.Logger.Info(
+				"Deleting old service and related endpoint",
+				"service", svc.Name,
+			)
+			err := r.client.CoreV1().Services(r.namespace).Delete(
+				svc.Name,
+				&metav1.DeleteOptions{},
+			)
+			if err != nil {
+				log.Logger.Error(
+					"Error clearing service",
+					"service", svc.Name,
+					"err", err,
+				)
+				return err
+			}
+			err = r.client.CoreV1().Endpoints(r.namespace).Delete(
+				svc.Name,
+				&metav1.DeleteOptions{},
+			)
+			if err != nil {
+				log.Logger.Error(
+					"Error clearing endpoints",
+					"endpoints", svc.Name,
+					"err", err,
+				)
+			}
+
+		}
+	}
+	return nil
 }
 
 func (r *Runner) createService(name, namespace string, labels map[string]string, ports []v1.ServicePort, headless bool) (*v1.Service, error) {

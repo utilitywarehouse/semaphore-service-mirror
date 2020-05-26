@@ -16,8 +16,9 @@ var (
 	flagLogLevel             = flag.String("log-level", "info", "Log level, defaults to info")
 	flagResyncPeriod         = flag.Duration("resync-period", 60*time.Minute, "Namespace watcher cache resync period")
 	flagMirrorNamespace      = flag.String("mirror-ns", "", "The namespace to create dummy mirror services in")
-	flagSvcPrefix            = flag.String("svc-prefix", "", "A prefix to apply on all mirrored services names")
+	flagSvcPrefix            = flag.String("svc-prefix", "", "(required) A prefix to apply on all mirrored services names. Will also be used for initial service sync")
 	flagLabelSelector        = flag.String("label-selector", "", "(required) Label of services and endpoints to watch and mirror")
+	flagSvcSync              = flag.Bool("svc-sync", true, "sync services on startup")
 )
 
 func usage() {
@@ -36,6 +37,12 @@ func main() {
 	if *flagLabelSelector == "" {
 		usage()
 	}
+
+	if *flagSvcPrefix == "" {
+		usage()
+	}
+	// Create a label to help syncing on startup
+	CommonLabels["mirror-svc-prefix-sync"] = *flagSvcPrefix
 
 	log.InitLogger("kube-service-mirror", *flagLogLevel)
 
@@ -67,6 +74,7 @@ func main() {
 		// Resync will trigger an onUpdate event for everything that is
 		// stored in cache.
 		*flagResyncPeriod,
+		*flagSvcSync,
 	)
 	go runner.Run()
 
