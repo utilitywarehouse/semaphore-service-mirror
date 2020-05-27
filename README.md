@@ -7,20 +7,31 @@ able to route virtual services for remote pods.
 
 ## Usage
 ```
-Usage of ./kube-service-mirror:
+Usage of /kube-service-mirror:
   -kube-config string
         Path of a kube config file, if not provided the app will try to get in cluster config
+  -label-selector string
+        (required) Label of services and endpoints to watch and mirror
   -log-level string
-        log level, defaults to info (default "info")
+        Log level, defaults to info (default "info")
   -mirror-ns string
-        the namespace to create dummy mirror services in
+        The namespace to create dummy mirror services in
   -resync-period duration
         Namespace watcher cache resync period (default 1h0m0s)
   -svc-prefix string
-        a prefix to apply on all mirrored services names
+        (required) A prefix to apply on all mirrored services names. Will also be used for initial service sync
+  -svc-sync
+        sync services on startup (default true)
   -target-kube-config string
         (required) Path of the target cluster kube config file to mirrot services from
 ```
+
+* `-svc-prefix` flag is non optional and has 2 different uses:
+  - It is used as a prefix for your mirrored services, so that you can mirror
+    the same ns/service from different clusters.
+  - It is used to label your mirrored services as:
+    `mirror-svc-prefix-sync: <value>`, so that the app can filter out which
+    services to delete on the initial sync on startup.
 
 ## Generating mirrored service names
 
@@ -84,3 +95,12 @@ to match services on the local namespace that the services are mirrored.
 target cluster and the local namespace that contains the mirrored services.
 * note that the above example assumes that you are running the mirroring service
 with a prefix flag that matches the target cluster name.
+
+## Kube Client Version Table
+
+Here is a table of the kube client version in relation with the
+kube-service-mirror version, that could be handy for updates:
+
+| Version   |     Kube client version |
+|:---------:|:-----------------------:|
+| 0.1.0     | 1.17.3                  |
