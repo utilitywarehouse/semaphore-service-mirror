@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/utilitywarehouse/kube-service-mirror/log"
@@ -148,7 +149,7 @@ func TestModifyService(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("test-svc-%s-remote-ns", SEPARATOR),
 			Namespace: "local-ns",
-			Labels:    CommonLabels,
+			Labels:    MirrorLabels,
 		},
 		Spec: v1.ServiceSpec{
 			Ports:    testPorts,
@@ -191,4 +192,78 @@ func TestModifyService(t *testing.T) {
 		Spec:      expectedSpec,
 	}}
 	assertExpectedServices(t, expectedSvcs, fakeClient)
+}
+
+func TestServiceSync(t *testing.T) {
+
+	log.InitLogger("kube-service-mirror-test", "debug")
+
+	testPorts := []v1.ServicePort{v1.ServicePort{Port: 1}}
+	// Service on the remote cluster
+	testSvc := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-svc",
+			Namespace: "remote-ns",
+			Labels:    map[string]string{"uw.systems/test": "true"},
+		},
+		Spec: v1.ServiceSpec{
+			Ports:     testPorts,
+			Selector:  map[string]string{"test-app": "true"},
+			ClusterIP: "1.1.1.1",
+		},
+	}
+	fakeWatchClient := fake.NewSimpleClientset(testSvc)
+
+	// Create mirrored service
+	mirroredSvc := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("prefix-test-svc-%s-remote-ns", SEPARATOR),
+			Namespace: "local-ns",
+			Labels:    MirrorLabels,
+		},
+		Spec: v1.ServiceSpec{
+			Ports:    testPorts,
+			Selector: nil,
+		},
+	}
+	// Create stale service
+	staleSvc := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("prefix-old-svc-%s-remote-ns", SEPARATOR),
+			Namespace: "local-ns",
+			Labels:    MirrorLabels,
+		},
+		Spec: v1.ServiceSpec{
+			Ports:    testPorts,
+			Selector: nil,
+		},
+	}
+	// feed them to the fake client
+	fakeClient := fake.NewSimpleClientset(mirroredSvc, staleSvc)
+
+	testRunner := NewRunner(
+		fakeClient,
+		fakeWatchClient,
+		"local-ns",
+		"prefix",
+		"uw.systems/test=true",
+		60*time.Minute,
+		true,
+	)
+
+	// Run will trigger a sync. Verify that old service is deleted
+	testRunner.Run()
+	defer testRunner.Stop()
+
+	svcs, err := fakeClient.CoreV1().Services("").List(
+		metav1.ListOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, 1, len(svcs.Items))
+	assert.Equal(
+		t,
+		fmt.Sprintf("prefix-test-svc-%s-remote-ns", SEPARATOR),
+		svcs.Items[0].Name,
+	)
 }

@@ -1,7 +1,7 @@
 package kube
 
 import (
-	"errors"
+	"fmt"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -12,10 +12,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/utilitywarehouse/kube-service-mirror/log"
-)
-
-var (
-	ERROR_SVC_NOT_EXISTS = errors.New("service does not exist in store")
 )
 
 type ServiceEventHandler = func(eventType watch.EventType, old *v1.Service, new *v1.Service)
@@ -97,20 +93,16 @@ func (sw *ServiceWatcher) HasSynced() bool {
 	return sw.controller.HasSynced()
 }
 
-func (sw *ServiceWatcher) Get(name string) (*v1.Service, error) {
-	// TODO: Can't make GetByKey work
+func (sw *ServiceWatcher) List() ([]*v1.Service, error) {
+	var svcs []*v1.Service
 	for _, obj := range sw.store.List() {
 		svc, ok := obj.(*v1.Service)
 		if !ok {
-			log.Logger.Error("cannot read svc object: %s", obj)
-			continue
+			return nil, fmt.Errorf("unexpected object in store: %+v", obj)
 		}
-		if svc.Name == name {
-			return svc, nil
-		}
+		svcs = append(svcs, svc)
 	}
-	return &v1.Service{}, ERROR_SVC_NOT_EXISTS
-
+	return svcs, nil
 }
 
 func (sw *ServiceWatcher) Healthy() bool {
