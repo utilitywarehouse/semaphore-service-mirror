@@ -138,11 +138,8 @@ func (r *Runner) ServiceSync() error {
 		)
 	}
 
-	labelSelector := &metav1.LabelSelector{
-		MatchLabels: MirrorLabels,
-	}
 	options := metav1.ListOptions{
-		LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
+		LabelSelector: labels.Set(MirrorLabels).String(),
 	}
 	currSvcs, err := r.client.CoreV1().Services(r.namespace).List(options)
 	if err != nil {
