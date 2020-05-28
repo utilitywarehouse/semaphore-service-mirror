@@ -321,46 +321,98 @@ func (r *Runner) updateEndpoints(name, namespace string, labels map[string]strin
 func (r *Runner) onEndpointsAdd(new *v1.Endpoints) {
 	name := r.generateMirrorName(new.Name, new.Namespace)
 	_, err := r.getEndpoints(name, r.namespace)
+	var ep *v1.Endpoints
 	if err != nil {
 		log.Logger.Info(
 			"cannot get endpoints will try to create",
 			"endpoints", name,
 		)
-		_, err = r.createEndpoints(name, r.namespace, MirrorLabels, new.Subsets)
+		ep, err = r.createEndpoints(name, r.namespace, MirrorLabels, new.Subsets)
 		if err != nil {
 			log.Logger.Error(
 				"failed to create mirror endpoints",
 				"endpoints", new.Name,
 				"err", err,
 			)
+			return
 		}
 	} else {
 		log.Logger.Info(
 			"endpoints found will try to update",
 			"endpoints", name,
 		)
-		_, err = r.updateEndpoints(name, r.namespace, MirrorLabels, new.Subsets)
+		ep, err = r.updateEndpoints(name, r.namespace, MirrorLabels, new.Subsets)
 		if err != nil {
 			log.Logger.Error(
 				"failed to update mirror endpoints",
 				"endpoints", new.Name,
 				"err", err,
 			)
+			return
+		}
+	}
+	ess, err := endpointsToEndpointSlices(ep)
+	if err != nil {
+		log.Logger.Error("failed to generate endpointslices from endpoints", "err", err)
+		return
+	}
+	for _, es := range ess {
+		if _, err := r.client.DiscoveryV1beta1().EndpointSlices(es.Namespace).Get(es.Name, metav1.GetOptions{}); err != nil {
+			log.Logger.Info(
+				"cannot get endpointslice will try to create",
+				"endpointslice", name,
+			)
+			_, err := r.client.DiscoveryV1beta1().EndpointSlices(es.Namespace).Create(es)
+			if err != nil {
+				log.Logger.Error(
+					"failed to create endpointslice",
+					"endpointslice", es,
+					"err", err,
+				)
+			}
+		} else {
+			log.Logger.Info(
+				"endpointslice found will try to update",
+				"endpointslice", name,
+			)
+			_, err := r.client.DiscoveryV1beta1().EndpointSlices(es.Namespace).Update(es)
+			if err != nil {
+				log.Logger.Error(
+					"failed to update endpointslice",
+					"endpointslice", es,
+					"err", err,
+				)
+			}
 		}
 	}
 }
 
 func (r *Runner) onEndpointsModify(new *v1.Endpoints) {
 	name := r.generateMirrorName(new.Name, new.Namespace)
-	_, err := r.updateEndpoints(name, r.namespace, MirrorLabels, new.Subsets)
+	ep, err := r.updateEndpoints(name, r.namespace, MirrorLabels, new.Subsets)
 	if err != nil {
 		log.Logger.Error(
 			"failed to update mirror endpoints",
 			"endpoints", new.Name,
 			"err", err,
 		)
+		return
 	}
-	return
+	ess, err := endpointsToEndpointSlices(ep)
+	if err != nil {
+		log.Logger.Error("failed to generate endpointslices from endpoints", "err", err)
+		return
+	}
+	for _, es := range ess {
+		_, err := r.client.DiscoveryV1beta1().EndpointSlices(es.Namespace).Update(es)
+		if err != nil {
+			log.Logger.Error(
+				"failed to update endpointslice",
+				"endpointslice", es,
+				"err", err,
+			)
+		}
+	}
 }
 
 func (r *Runner) onEndpointsDelete(old *v1.Endpoints) {

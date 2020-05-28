@@ -19,6 +19,7 @@ var (
 	flagSvcPrefix            = flag.String("svc-prefix", "", "(required) A prefix to apply on all mirrored services names. Will also be used for initial service sync")
 	flagLabelSelector        = flag.String("label-selector", "", "(required) Label of services and endpoints to watch and mirror")
 	flagSvcSync              = flag.Bool("svc-sync", true, "sync services on startup")
+	flagEndpointSlice        = flag.Bool("endpoint-slice", false, "generate EndpointSlices")
 )
 
 func usage() {
