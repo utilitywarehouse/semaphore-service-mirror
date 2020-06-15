@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -24,6 +25,7 @@ const (
 )
 
 type Runner struct {
+	ctx              context.Context
 	client           kubernetes.Interface
 	serviceWatcher   *kube.ServiceWatcher
 	endpointsWatcher *kube.EndpointsWatcher
@@ -35,6 +37,7 @@ type Runner struct {
 
 func NewRunner(client, watchClient kubernetes.Interface, namespace, prefix, labelselector string, resyncPeriod time.Duration, sync bool) *Runner {
 	runner := &Runner{
+		ctx:       context.Background(),
 		client:    client,
 		namespace: namespace,
 		prefix:    prefix,
@@ -103,6 +106,7 @@ func (r *Runner) generateMirrorName(name, namespace string) string {
 
 func (r *Runner) getService(name, namespace string) (*v1.Service, error) {
 	return r.client.CoreV1().Services(namespace).Get(
+		r.ctx,
 		name,
 		metav1.GetOptions{},
 	)
@@ -141,7 +145,7 @@ func (r *Runner) ServiceSync() error {
 	options := metav1.ListOptions{
 		LabelSelector: labels.Set(MirrorLabels).String(),
 	}
-	currSvcs, err := r.client.CoreV1().Services(r.namespace).List(options)
+	currSvcs, err := r.client.CoreV1().Services(r.namespace).List(r.ctx, options)
 	if err != nil {
 		return err
 	}
@@ -155,8 +159,9 @@ func (r *Runner) ServiceSync() error {
 			// Deleting a service should also clear the related
 			// endpoints
 			err := r.client.CoreV1().Services(r.namespace).Delete(
+				r.ctx,
 				svc.Name,
-				&metav1.DeleteOptions{},
+				metav1.DeleteOptions{},
 			)
 			if err != nil {
 				log.Logger.Error(
@@ -188,7 +193,11 @@ func (r *Runner) createService(name, namespace string, labels map[string]string,
 	if headless {
 		svc.Spec.ClusterIP = "None"
 	}
-	return r.client.CoreV1().Services(r.namespace).Create(svc)
+	return r.client.CoreV1().Services(r.namespace).Create(
+		r.ctx,
+		svc,
+		metav1.CreateOptions{},
+	)
 }
 
 func (r *Runner) updateService(service *v1.Service, ports []v1.ServicePort) (*v1.Service, error) {
@@ -197,7 +206,11 @@ func (r *Runner) updateService(service *v1.Service, ports []v1.ServicePort) (*v1
 	service.Spec.Ports = ports
 	service.Spec.Selector = nil
 
-	return r.client.CoreV1().Services(r.namespace).Update(service)
+	return r.client.CoreV1().Services(r.namespace).Update(
+		r.ctx,
+		service,
+		metav1.UpdateOptions{},
+	)
 }
 
 func (r *Runner) onServiceAdd(new *v1.Service) {
@@ -259,8 +272,9 @@ func (r *Runner) onServiceModify(new *v1.Service) {
 func (r *Runner) onServiceDelete(old *v1.Service) {
 	name := r.generateMirrorName(old.Name, old.Namespace)
 	err := r.client.CoreV1().Services(r.namespace).Delete(
+		r.ctx,
 		name,
-		&metav1.DeleteOptions{},
+		metav1.DeleteOptions{},
 	)
 	if err != nil {
 		log.Logger.Error(
@@ -289,6 +303,7 @@ func (r *Runner) ServiceEventHandler(eventType watch.EventType, old *v1.Service,
 
 func (r *Runner) getEndpoints(name, namespace string) (*v1.Endpoints, error) {
 	return r.client.CoreV1().Endpoints(namespace).Get(
+		r.ctx,
 		name,
 		metav1.GetOptions{},
 	)
@@ -296,6 +311,7 @@ func (r *Runner) getEndpoints(name, namespace string) (*v1.Endpoints, error) {
 
 func (r *Runner) createEndpoints(name, namespace string, labels map[string]string, subsets []v1.EndpointSubset) (*v1.Endpoints, error) {
 	return r.client.CoreV1().Endpoints(namespace).Create(
+		r.ctx,
 		&v1.Endpoints{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
@@ -303,11 +319,14 @@ func (r *Runner) createEndpoints(name, namespace string, labels map[string]strin
 				Labels:    labels,
 			},
 			Subsets: subsets,
-		})
+		},
+		metav1.CreateOptions{},
+	)
 }
 
 func (r *Runner) updateEndpoints(name, namespace string, labels map[string]string, subsets []v1.EndpointSubset) (*v1.Endpoints, error) {
 	return r.client.CoreV1().Endpoints(namespace).Update(
+		r.ctx,
 		&v1.Endpoints{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
@@ -315,7 +334,9 @@ func (r *Runner) updateEndpoints(name, namespace string, labels map[string]strin
 				Labels:    labels,
 			},
 			Subsets: subsets,
-		})
+		},
+		metav1.UpdateOptions{},
+	)
 }
 
 func (r *Runner) onEndpointsAdd(new *v1.Endpoints) {
@@ -366,8 +387,9 @@ func (r *Runner) onEndpointsModify(new *v1.Endpoints) {
 func (r *Runner) onEndpointsDelete(old *v1.Endpoints) {
 	name := r.generateMirrorName(old.Name, old.Namespace)
 	err := r.client.CoreV1().Endpoints(r.namespace).Delete(
+		r.ctx,
 		name,
-		&metav1.DeleteOptions{},
+		metav1.DeleteOptions{},
 	)
 	if err != nil {
 		log.Logger.Error(
