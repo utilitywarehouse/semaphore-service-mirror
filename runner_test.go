@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -26,10 +27,12 @@ type TestSpec struct {
 	ClusterIP string
 }
 
-func assertExpectedServices(t *testing.T, expectedSvcs []TestSvc, fakeClient *fake.Clientset) {
+func assertExpectedServices(t *testing.T, ctx context.Context, expectedSvcs []TestSvc, fakeClient *fake.Clientset) {
 
 	svcs, err := fakeClient.CoreV1().Services("").List(
-		metav1.ListOptions{})
+		ctx,
+		metav1.ListOptions{},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,6 +47,8 @@ func assertExpectedServices(t *testing.T, expectedSvcs []TestSvc, fakeClient *fa
 }
 
 func TestAddService(t *testing.T) {
+
+	ctx := context.Background()
 
 	log.InitLogger("kube-service-mirror-test", "debug")
 	fakeClient := fake.NewSimpleClientset()
@@ -81,7 +86,7 @@ func TestAddService(t *testing.T) {
 		Namespace: "local-ns",
 		Spec:      expectedSpec,
 	}}
-	assertExpectedServices(t, expectedSvcs, fakeClient)
+	assertExpectedServices(t, ctx, expectedSvcs, fakeClient)
 
 	// Test create headless service - should create 1 service with "None"
 	// cluster ip, the same ports and nil selector
@@ -104,7 +109,7 @@ func TestAddService(t *testing.T) {
 		Namespace: "local-ns",
 		Spec:      expectedSpec,
 	}}
-	assertExpectedServices(t, expectedSvcs, fakeClient)
+	assertExpectedServices(t, ctx, expectedSvcs, fakeClient)
 
 	// Test add on existing triggers update
 	updatePorts := []v1.ServicePort{v1.ServicePort{Port: 2}}
@@ -122,10 +127,12 @@ func TestAddService(t *testing.T) {
 		Namespace: "local-ns",
 		Spec:      expectedSpec,
 	}}
-	assertExpectedServices(t, expectedSvcs, fakeClient)
+	assertExpectedServices(t, ctx, expectedSvcs, fakeClient)
 }
 
 func TestModifyService(t *testing.T) {
+
+	ctx := context.Background()
 
 	log.InitLogger("kube-service-mirror-test", "debug")
 
@@ -167,7 +174,9 @@ func TestModifyService(t *testing.T) {
 	testRunner.ServiceEventHandler(watch.Modified, &v1.Service{}, testSvc)
 
 	svcs, err := fakeClient.CoreV1().Services("").List(
-		metav1.ListOptions{})
+		ctx,
+		metav1.ListOptions{},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,10 +200,12 @@ func TestModifyService(t *testing.T) {
 		Namespace: "local-ns",
 		Spec:      expectedSpec,
 	}}
-	assertExpectedServices(t, expectedSvcs, fakeClient)
+	assertExpectedServices(t, ctx, expectedSvcs, fakeClient)
 }
 
 func TestServiceSync(t *testing.T) {
+
+	ctx := context.Background()
 
 	log.InitLogger("kube-service-mirror-test", "debug")
 
@@ -256,7 +267,9 @@ func TestServiceSync(t *testing.T) {
 	defer testRunner.Stop()
 
 	svcs, err := fakeClient.CoreV1().Services("").List(
-		metav1.ListOptions{})
+		ctx,
+		metav1.ListOptions{},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
