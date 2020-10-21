@@ -95,12 +95,3 @@ to match services on the local namespace that the services are mirrored.
 target cluster and the local namespace that contains the mirrored services.
 * note that the above example assumes that you are running the mirroring service
 with a prefix flag that matches the target cluster name.
-
-## Kube Client Version Table
-
-Here is a table of the kube client version in relation with the
-kube-service-mirror version, that could be handy for updates:
-
-| Version   |     Kube client version |
-|:---------:|:-----------------------:|
-| 0.1.0     | 1.17.3                  |
