@@ -19,6 +19,10 @@ var (
 	flagSvcPrefix            = flag.String("svc-prefix", "", "(required) A prefix to apply on all mirrored services names. Will also be used for initial service sync")
 	flagLabelSelector        = flag.String("label-selector", "", "(required) Label of services and endpoints to watch and mirror")
 	flagSvcSync              = flag.Bool("svc-sync", true, "sync services on startup")
+
+	saToken = os.Getenv("SERVICE_ACCOUNT_TOKEN")
+	apiURL  = os.Getenv("KUBE_API_SERVER")
+	caURL   = os.Getenv("REMOTE_CLUSTER_CA_CERT_URL")
 )
 
 func usage() {
@@ -47,7 +51,7 @@ func main() {
 	log.InitLogger("kube-service-mirror", *flagLogLevel)
 
 	/// Get a kube client to use with the watchers
-	kubeClient, err := kube.GetClient(*flagKubeConfigPath)
+	homeClient, err := kube.InClusterClient()
 	if err != nil {
 		log.Logger.Error(
 			"cannot create kube client for homecluster",
@@ -56,18 +60,18 @@ func main() {
 		usage()
 	}
 
-	watchClient, err := kube.GetClient(*flagTargetKubeConfigPath)
+	remoteClient, err := kube.Client(saToken, apiURL, caURL)
 	if err != nil {
 		log.Logger.Error(
-			"cannot create kube client for homecluster",
+			"cannot create kube client for remotecluster",
 			"err", err,
 		)
 		usage()
 	}
 
 	runner := NewRunner(
-		kubeClient,
-		watchClient,
+		homeClient,
+		remoteClient,
 		*flagMirrorNamespace,
 		*flagSvcPrefix,
 		*flagLabelSelector,

@@ -2,30 +2,63 @@ package kube
 
 import (
 	"fmt"
+	"io"
+	"log"
+
+	"crypto/tls"
+	"encoding/pem"
+	"io/ioutil"
+	"net/http"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 	// in case of local kube config
-	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
+	// _ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
 )
 
-// GetClient returns a Kubernetes client (clientset) from the kubeconfig path
-// or from the in-cluster service account environment.
-func GetClient(path string) (*kubernetes.Clientset, error) {
-	conf, err := getClientConfig(path)
+type CertMan struct {
+	apiURL string
+}
+
+func (cm *CertMan) certificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	resp, err := http.Get(cm.apiURL)
+	defer func() {
+		io.Copy(ioutil.Discard, resp.Body)
+		resp.Body.Close()
+	}()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get Kubernetes client config: %v", err)
+		log.Printf("%v", err)
+		return nil, err
+	}
+
+	var cert tls.Certificate
+	body, err := ioutil.ReadAll(resp.Body)
+	block, _ := pem.Decode(body)
+	if block == nil {
+		log.Printf("failed to parse certificate PEM")
+		return nil, err
+	}
+	return &tls.Certificate{Certificate: append(cert.Certificate, block.Bytes)}, nil
+}
+
+// Client returns a Kubernetes client (clientset) from the kubeconfig path
+// or from the in-cluster service account environment.
+func Client(token, apiURL, caURL string) (*kubernetes.Clientset, error) {
+	cm := &CertMan{apiURL}
+	conf := &rest.Config{
+		Host:        apiURL,
+		Transport:   &http.Transport{TLSClientConfig: &tls.Config{GetCertificate: cm.certificate}},
+		BearerToken: token,
 	}
 	return kubernetes.NewForConfig(conf)
 }
 
-// getClientConfig returns a Kubernetes client Config.
-func getClientConfig(path string) (*rest.Config, error) {
-	if path != "" {
-		// build Config from a kubeconfig filepath
-		return clientcmd.BuildConfigFromFlags("", path)
+// InClusterClient returns a Kubernetes client (clientset) from the in-cluster
+// service account environment.
+func InClusterClient() (*kubernetes.Clientset, error) {
+	conf, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Kubernetes client config: %v", err)
 	}
-	// uses pod's service account to get a Config
-	return rest.InClusterConfig()
+	return kubernetes.NewForConfig(conf)
 }
