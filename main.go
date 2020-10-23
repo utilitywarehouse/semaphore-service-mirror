@@ -4,6 +4,8 @@ import (
 	"flag"
 	"net/http"
 	"os"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/utilitywarehouse/kube-service-mirror/kube"
@@ -22,6 +24,8 @@ var (
 	saToken = os.Getenv("SERVICE_ACCOUNT_TOKEN")
 	apiURL  = os.Getenv("KUBE_API_SERVER")
 	caURL   = os.Getenv("REMOTE_CLUSTER_CA_CERT_URL")
+
+	bearerRe = regexp.MustCompile(`[A-Z|a-z0-9\-\._~\+\/]+=*`)
 )
 
 func usage() {
@@ -30,7 +34,6 @@ func usage() {
 }
 
 func main() {
-
 	flag.Parse()
 
 	if *flagLabelSelector == "" {
@@ -39,6 +42,13 @@ func main() {
 
 	if *flagSvcPrefix == "" {
 		usage()
+	}
+
+	saToken = strings.TrimSuffix(saToken, "\n")
+	if !bearerRe.Match([]byte(saToken)) {
+		log.Logger.Error(
+			"The provided token does not match regex",
+			"regex", bearerRe.String)
 	}
 	// Create a label to help syncing on startup
 	MirrorLabels["mirror-svc-prefix-sync"] = *flagSvcPrefix
