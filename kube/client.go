@@ -6,12 +6,13 @@ import (
 	"io"
 
 	"crypto/tls"
-	"encoding/pem"
+	"crypto/x509"
 	"io/ioutil"
 	"net/http"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 
 	// in case of local kube config
 	// _ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
@@ -20,11 +21,11 @@ import (
 )
 
 type CertMan struct {
-	apiURL string
+	caURL string
 }
 
-func (cm *CertMan) certificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	resp, err := http.Get(cm.apiURL)
+func (cm *CertMan) verifyConn(cs tls.ConnectionState) error {
+	resp, err := http.Get(cm.caURL)
 	defer func() {
 		io.Copy(ioutil.Discard, resp.Body)
 		resp.Body.Close()
@@ -33,53 +34,53 @@ func (cm *CertMan) certificate(hello *tls.ClientHelloInfo) (*tls.Certificate, er
 		log.Logger.Error(
 			"error getting remote CA",
 			"err", err)
-		return nil, err
+		return err
 	}
-
-	var cert tls.Certificate
 	body, err := ioutil.ReadAll(resp.Body)
-
-	// Discard "rest" - expecting a single block only
-	block, _ := pem.Decode(body)
-	if block == nil {
-		log.Logger.Error("failed to parse certificate PEM")
-		return nil, errors.New("failed to parse certificate PEM")
+	roots := x509.NewCertPool()
+	ok := roots.AppendCertsFromPEM(body)
+	if !ok {
+		return errors.New("failed to parse root certificate")
 	}
-	if block.Type == "CERTIFICATE" {
-		cert.Certificate = append(cert.Certificate, block.Bytes)
-	} else {
-		log.Logger.Error(
-			"PEM block is not Type CERTIFICATE",
-			"type", block.Type)
-		return nil, errors.New("failed to parse certificate PEM")
+	opts := x509.VerifyOptions{
+		DNSName: cs.ServerName,
+		Roots:   roots,
 	}
-	if len(cert.Certificate) == 0 {
-		log.Logger.Error(
-			"No certificates found",
-			"url", cm.apiURL)
-		return nil, errors.New("No certificates found")
-	}
-	return &cert, nil
+	_, err = cs.PeerCertificates[0].Verify(opts)
+	return err
 }
 
 // Client returns a Kubernetes client (clientset) from the kubeconfig path
 // or from the in-cluster service account environment.
 func Client(token, apiURL, caURL string) (*kubernetes.Clientset, error) {
-	cm := &CertMan{apiURL}
+	cm := &CertMan{caURL}
 	conf := &rest.Config{
-		Host:        apiURL,
-		Transport:   &http.Transport{TLSClientConfig: &tls.Config{GetCertificate: cm.certificate}},
+		Host: apiURL,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+				VerifyConnection:   cm.verifyConn}},
 		BearerToken: token,
 	}
 	return kubernetes.NewForConfig(conf)
 }
 
-// InClusterClient returns a Kubernetes client (clientset) from the in-cluster
-// service account environment.
-func InClusterClient() (*kubernetes.Clientset, error) {
-	conf, err := rest.InClusterConfig()
+// ClientFromConfig returns a Kubernetes client (clientset) from the kubeconfig
+// path or from the in-cluster service account environment.
+func ClientFromConfig(path string) (*kubernetes.Clientset, error) {
+	conf, err := getClientConfig(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get Kubernetes client config: %v", err)
 	}
 	return kubernetes.NewForConfig(conf)
+}
+
+// getClientConfig returns a Kubernetes client Config.
+func getClientConfig(path string) (*rest.Config, error) {
+	if path != "" {
+		// build Config from a kubeconfig filepath
+		return clientcmd.BuildConfigFromFlags("", path)
+	}
+	// uses pod's service account to get a Config
+	return rest.InClusterConfig()
 }

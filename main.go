@@ -55,8 +55,8 @@ func main() {
 
 	log.InitLogger("kube-service-mirror", *flagLogLevel)
 
-	/// Get a kube client to use with the watchers
-	homeClient, err := kube.InClusterClient()
+	// Get a kube client to use with the watchers
+	homeClient, err := kube.ClientFromConfig(*flagKubeConfigPath)
 	if err != nil {
 		log.Logger.Error(
 			"cannot create kube client for homecluster",
