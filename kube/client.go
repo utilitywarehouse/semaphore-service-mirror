@@ -1,6 +1,7 @@
 package kube
 
 import (
+	"errors"
 	"fmt"
 	"io"
 
@@ -11,6 +12,7 @@ import (
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+
 	// in case of local kube config
 	// _ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
 
@@ -36,12 +38,28 @@ func (cm *CertMan) certificate(hello *tls.ClientHelloInfo) (*tls.Certificate, er
 
 	var cert tls.Certificate
 	body, err := ioutil.ReadAll(resp.Body)
+
+	// Discard "rest" - expecting a single block only
 	block, _ := pem.Decode(body)
 	if block == nil {
 		log.Logger.Error("failed to parse certificate PEM")
-		return nil, err
+		return nil, errors.New("failed to parse certificate PEM")
 	}
-	return &tls.Certificate{Certificate: append(cert.Certificate, block.Bytes)}, nil
+	if block.Type == "CERTIFICATE" {
+		cert.Certificate = append(cert.Certificate, block.Bytes)
+	} else {
+		log.Logger.Error(
+			"PEM block is not Type CERTIFICATE",
+			"type", block.Type)
+		return nil, errors.New("failed to parse certificate PEM")
+	}
+	if len(cert.Certificate) == 0 {
+		log.Logger.Error(
+			"No certificates found",
+			"url", cm.apiURL)
+		return nil, errors.New("No certificates found")
+	}
+	return &cert, nil
 }
 
 // Client returns a Kubernetes client (clientset) from the kubeconfig path
