@@ -32,6 +32,7 @@ var (
 
 func usage() {
 	flag.Usage()
+	os.Exit(1)
 }
 
 func main() {

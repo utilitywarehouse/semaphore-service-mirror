@@ -7,7 +7,7 @@ able to route virtual services for remote pods.
 
 ## Usage
 ```
-Usage of ./kube-service-mirror:
+Usage of kube-service-mirror:
   -kube-config string
         Path of a kube config file, if not provided the app will try to get in cluster config
   -label-selector string
