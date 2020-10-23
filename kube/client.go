@@ -50,8 +50,7 @@ func (cm *CertMan) verifyConn(cs tls.ConnectionState) error {
 	return err
 }
 
-// Client returns a Kubernetes client (clientset) from the kubeconfig path
-// or from the in-cluster service account environment.
+// Client returns a Kubernetes client (clientset) from token, apiURL and caURL
 func Client(token, apiURL, caURL string) (*kubernetes.Clientset, error) {
 	cm := &CertMan{caURL}
 	conf := &rest.Config{
