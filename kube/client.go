@@ -3,7 +3,6 @@ package kube
 import (
 	"fmt"
 	"io"
-	"log"
 
 	"crypto/tls"
 	"encoding/pem"
@@ -14,6 +13,8 @@ import (
 	"k8s.io/client-go/rest"
 	// in case of local kube config
 	// _ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
+
+	"github.com/utilitywarehouse/kube-service-mirror/log"
 )
 
 type CertMan struct {
@@ -27,7 +28,9 @@ func (cm *CertMan) certificate(hello *tls.ClientHelloInfo) (*tls.Certificate, er
 		resp.Body.Close()
 	}()
 	if err != nil {
-		log.Printf("%v", err)
+		log.Logger.Error(
+			"error getting remote CA",
+			"err", err)
 		return nil, err
 	}
 
@@ -35,7 +38,7 @@ func (cm *CertMan) certificate(hello *tls.ClientHelloInfo) (*tls.Certificate, er
 	body, err := ioutil.ReadAll(resp.Body)
 	block, _ := pem.Decode(body)
 	if block == nil {
-		log.Printf("failed to parse certificate PEM")
+		log.Logger.Error("failed to parse certificate PEM")
 		return nil, err
 	}
 	return &tls.Certificate{Certificate: append(cert.Certificate, block.Bytes)}, nil
