@@ -13,15 +13,21 @@ Usage of kube-service-mirror:
   -label-selector string
         (required) Label of services and endpoints to watch and mirror
   -log-level string
-        Log level, defaults to info (default "info")
+        Log level (default "info")
   -mirror-ns string
         The namespace to create dummy mirror services in
+  -remote-api-url string
+        Remote Kubernetes API server URL
+  -remote-ca-url string
+        Remote Kubernetes CA certificate URL
+  -remote-sa-token-path string
+        Remote Kubernetes cluster token path
   -resync-period duration
         Namespace watcher cache resync period (default 1h0m0s)
   -svc-prefix string
         (required) A prefix to apply on all mirrored services names. Will also be used for initial service sync
   -svc-sync
-        sync services on startup (default true)
+        Sync services on startup (default true)
   -target-kube-config string
         Path of the target cluster kube config file to mirrot services from
 ```
@@ -32,6 +38,14 @@ Usage of kube-service-mirror:
   - It is used to label your mirrored services as:
     `mirror-svc-prefix-sync: <value>`, so that the app can filter out which
     services to delete on the initial sync on startup.
+
+You can set most flags via envvars instead, format: "KSM_FLAG_NAME". Example:
+`-remote-ca-url` can be set as `KSM_REMOTE_CA_URL`.
+
+If both are present, flags take precedence over envvars.
+
+Only exception is `-remote-sa-token-path` flag and
+`KSM_REMOTE_SERVICE_ACCOUNT_TOKEN` envvar.
 
 ## Generating mirrored service names
 
