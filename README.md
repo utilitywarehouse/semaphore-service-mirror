@@ -29,7 +29,7 @@ Usage of kube-service-mirror:
   -svc-sync
         Sync services on startup (default true)
   -target-kube-config string
-        Path of the target cluster kube config file to mirrot services from
+        Path of the target cluster kube config file to mirror services from
 ```
 
 * `-svc-prefix` flag is non optional and has 2 different uses:
