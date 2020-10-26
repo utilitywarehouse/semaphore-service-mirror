@@ -25,7 +25,7 @@ var (
 	flagSvcPrefix            = flag.String("svc-prefix", getEnv("KSM_SVC_PREFIX", ""), "(required) A prefix to apply on all mirrored services names. Will also be used for initial service sync")
 	flagLabelSelector        = flag.String("label-selector", getEnv("KSM_LABEL_SELECTOR", ""), "(required) Label of services and endpoints to watch and mirror")
 	flagSvcSync              = flag.Bool("svc-sync", true, "Sync services on startup")
-	flatRemoteAPIURL         = flag.String("remote-api-url", getEnv("KSM_REMOTE_API_URL", ""), "Remote Kubernetes API server URL")
+	flagRemoteAPIURL         = flag.String("remote-api-url", getEnv("KSM_REMOTE_API_URL", ""), "Remote Kubernetes API server URL")
 	flagRemoteCAURL          = flag.String("remote-ca-url", getEnv("KSM_REMOTE_CA_URL", ""), "Remote Kubernetes CA certificate URL")
 	flagRemoteSATokenPath    = flag.String("remote-sa-token-path", "", "Remote Kubernetes cluster token path")
 
@@ -112,7 +112,7 @@ func main() {
 	if *flagTargetKubeConfigPath != "" {
 		remoteClient, err = kube.ClientFromConfig(*flagTargetKubeConfigPath)
 	} else {
-		remoteClient, err = kube.Client(saToken, *flatRemoteAPIURL, *flagRemoteCAURL)
+		remoteClient, err = kube.Client(saToken, *flagRemoteAPIURL, *flagRemoteCAURL)
 	}
 	if err != nil {
 		log.Logger.Error(
