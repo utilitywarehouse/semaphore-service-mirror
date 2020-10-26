@@ -7,23 +7,29 @@ able to route virtual services for remote pods.
 
 ## Usage
 ```
-Usage of /kube-service-mirror:
+Usage of kube-service-mirror:
   -kube-config string
         Path of a kube config file, if not provided the app will try to get in cluster config
   -label-selector string
         (required) Label of services and endpoints to watch and mirror
   -log-level string
-        Log level, defaults to info (default "info")
+        Log level (default "info")
   -mirror-ns string
         The namespace to create dummy mirror services in
+  -remote-api-url string
+        Remote Kubernetes API server URL
+  -remote-ca-url string
+        Remote Kubernetes CA certificate URL
+  -remote-sa-token-path string
+        Remote Kubernetes cluster token path
   -resync-period duration
         Namespace watcher cache resync period (default 1h0m0s)
   -svc-prefix string
         (required) A prefix to apply on all mirrored services names. Will also be used for initial service sync
   -svc-sync
-        sync services on startup (default true)
+        Sync services on startup (default true)
   -target-kube-config string
-        (required) Path of the target cluster kube config file to mirrot services from
+        Path of the target cluster kube config file to mirror services from
 ```
 
 * `-svc-prefix` flag is non optional and has 2 different uses:
@@ -32,6 +38,14 @@ Usage of /kube-service-mirror:
   - It is used to label your mirrored services as:
     `mirror-svc-prefix-sync: <value>`, so that the app can filter out which
     services to delete on the initial sync on startup.
+
+You can set most flags via envvars instead, format: "KSM_FLAG_NAME". Example:
+`-remote-ca-url` can be set as `KSM_REMOTE_CA_URL`.
+
+If both are present, flags take precedence over envvars.
+
+Only exception is `-remote-sa-token-path` flag and
+`KSM_REMOTE_SERVICE_ACCOUNT_TOKEN` envvar.
 
 ## Generating mirrored service names
 
@@ -50,43 +64,42 @@ $ echo mirror | xxd -p
 To create a smoother experience when accessing a service coredns can be
 configured using the `rewrite` functionality:
 ```
-  Corefile: |
-    cluster.<target> {
-        errors
-	health
-        rewrite continue {
-                name regex ([a-zA-Z0-9-_]*)\.([a-zv0-9-_]*)\.svc\.cluster\.<target> <target>-{1}-6d6972726f720a-{2}.<namespace>.svc.cluster.local
-                answer name <target>-([a-zA-Z0-9-_]*)-6d6972726f720a-([a-zA-Z0-9-_]*)\.<namespace>\.svc\.cluster\.local {1}.{2}.svc.cluster.<target>
-        }
-        kubernetes cluster.local in-addr.arpa ip6.arpa {
-          pods insecure
-          endpoint_pod_names
-          upstream
-          fallthrough in-addr.arpa ip6.arpa
-        }
-        forward . /etc/resolv.conf
-        cache 30
-        loop
-        reload
-        loadbalance
+cluster.<target> {
+    errors
+    health
+    rewrite continue {
+            name regex ([a-zA-Z0-9-_]*)\.([a-zv0-9-_]*)\.svc\.cluster\.<target> <target>-{1}-6d6972726f720a-{2}.<namespace>.svc.cluster.local
+            answer name <target>-([a-zA-Z0-9-_]*)-6d6972726f720a-([a-zA-Z0-9-_]*)\.<namespace>\.svc\.cluster\.local {1}.{2}.svc.cluster.<target>
     }
-    .:53 {
-        errors
-        health
-        kubernetes cluster.local in-addr.arpa ip6.arpa {
-          pods insecure
-          endpoint_pod_names
-          upstream
-          fallthrough in-addr.arpa ip6.arpa
-        }
+    kubernetes cluster.local in-addr.arpa ip6.arpa {
+      pods insecure
+      endpoint_pod_names
+      upstream
+      fallthrough in-addr.arpa ip6.arpa
+    }
+    forward . /etc/resolv.conf
+    cache 30
+    loop
+    reload
+    loadbalance
+}
+.:53 {
+    errors
+    health
+    kubernetes cluster.local in-addr.arpa ip6.arpa {
+      pods insecure
+      endpoint_pod_names
+      upstream
+      fallthrough in-addr.arpa ip6.arpa
+    }
 
-        prometheus :9153
-        forward . /etc/resolv.conf
-        cache 30
-        loop
-        reload
-        loadbalance
-    }
+    prometheus :9153
+    forward . /etc/resolv.conf
+    cache 30
+    loop
+    reload
+    loadbalance
+}
 ```
 that way all queries for services under domain cluster.target will be rewritten
 to match services on the local namespace that the services are mirrored.
