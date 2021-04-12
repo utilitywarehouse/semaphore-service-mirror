@@ -17,7 +17,7 @@ import (
 	// in case of local kube config
 	// _ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
 
-	"github.com/utilitywarehouse/kube-service-mirror/log"
+	"github.com/utilitywarehouse/semaphore-service-mirror/log"
 )
 
 type CertMan struct {

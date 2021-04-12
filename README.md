@@ -1,4 +1,4 @@
-# kube-service-mirror
+# semaphore-service-mirror
 
 Small app that watches for kubernetes services and endpoints in a target cluster
 and mirrors them in a local namespace. Can be used in conjunction with coredns
@@ -7,7 +7,7 @@ able to route virtual services for remote pods.
 
 ## Usage
 ```
-Usage of kube-service-mirror:
+Usage of semaphore-service-mirror:
   -kube-config string
         Path of a kube config file, if not provided the app will try to get in cluster config
   -label-selector string
@@ -39,13 +39,13 @@ Usage of kube-service-mirror:
     `mirror-svc-prefix-sync: <value>`, so that the app can filter out which
     services to delete on the initial sync on startup.
 
-You can set most flags via envvars instead, format: "KSM_FLAG_NAME". Example:
-`-remote-ca-url` can be set as `KSM_REMOTE_CA_URL`.
+You can set most flags via envvars instead, format: "SSM_FLAG_NAME". Example:
+`-remote-ca-url` can be set as `SSM_REMOTE_CA_URL`.
 
 If both are present, flags take precedence over envvars.
 
 Only exception is `-remote-sa-token-path` flag and
-`KSM_REMOTE_SERVICE_ACCOUNT_TOKEN` envvar.
+`SSM_REMOTE_SERVICE_ACCOUNT_TOKEN` envvar.
 
 ## Generating mirrored service names
 

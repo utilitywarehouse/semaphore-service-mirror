@@ -11,25 +11,25 @@ import (
 	"strings"
 	"time"
 
-	"github.com/utilitywarehouse/kube-service-mirror/kube"
-	"github.com/utilitywarehouse/kube-service-mirror/log"
+	"github.com/utilitywarehouse/semaphore-service-mirror/kube"
+	"github.com/utilitywarehouse/semaphore-service-mirror/log"
 	"k8s.io/client-go/kubernetes"
 )
 
 var (
-	flagKubeConfigPath       = flag.String("kube-config", getEnv("KSM_KUBE_CONFIG", ""), "Path of a kube config file, if not provided the app will try to get in cluster config")
-	flagTargetKubeConfigPath = flag.String("target-kube-config", getEnv("KSM_TARGET_KUBE_CONFIG", ""), "Path of the target cluster kube config file to mirrot services from")
-	flagLogLevel             = flag.String("log-level", getEnv("KSM_LOG_LEVEL", "info"), "Log level")
+	flagKubeConfigPath       = flag.String("kube-config", getEnv("SSM_KUBE_CONFIG", ""), "Path of a kube config file, if not provided the app will try to get in cluster config")
+	flagTargetKubeConfigPath = flag.String("target-kube-config", getEnv("SSM_TARGET_KUBE_CONFIG", ""), "Path of the target cluster kube config file to mirrot services from")
+	flagLogLevel             = flag.String("log-level", getEnv("SSM_LOG_LEVEL", "info"), "Log level")
 	flagResyncPeriod         = flag.Duration("resync-period", 60*time.Minute, "Namespace watcher cache resync period")
-	flagMirrorNamespace      = flag.String("mirror-ns", getEnv("KSM_MIRROR_NS", ""), "The namespace to create dummy mirror services in")
-	flagSvcPrefix            = flag.String("svc-prefix", getEnv("KSM_SVC_PREFIX", ""), "(required) A prefix to apply on all mirrored services names. Will also be used for initial service sync")
-	flagLabelSelector        = flag.String("label-selector", getEnv("KSM_LABEL_SELECTOR", ""), "(required) Label of services and endpoints to watch and mirror")
+	flagMirrorNamespace      = flag.String("mirror-ns", getEnv("SSM_MIRROR_NS", ""), "The namespace to create dummy mirror services in")
+	flagSvcPrefix            = flag.String("svc-prefix", getEnv("SSM_SVC_PREFIX", ""), "(required) A prefix to apply on all mirrored services names. Will also be used for initial service sync")
+	flagLabelSelector        = flag.String("label-selector", getEnv("SSM_LABEL_SELECTOR", ""), "(required) Label of services and endpoints to watch and mirror")
 	flagSvcSync              = flag.Bool("svc-sync", true, "Sync services on startup")
-	flagRemoteAPIURL         = flag.String("remote-api-url", getEnv("KSM_REMOTE_API_URL", ""), "Remote Kubernetes API server URL")
-	flagRemoteCAURL          = flag.String("remote-ca-url", getEnv("KSM_REMOTE_CA_URL", ""), "Remote Kubernetes CA certificate URL")
+	flagRemoteAPIURL         = flag.String("remote-api-url", getEnv("SSM_REMOTE_API_URL", ""), "Remote Kubernetes API server URL")
+	flagRemoteCAURL          = flag.String("remote-ca-url", getEnv("SSM_REMOTE_CA_URL", ""), "Remote Kubernetes CA certificate URL")
 	flagRemoteSATokenPath    = flag.String("remote-sa-token-path", "", "Remote Kubernetes cluster token path")
 
-	saToken = os.Getenv("KSM_REMOTE_SERVICE_ACCOUNT_TOKEN")
+	saToken = os.Getenv("SSM_REMOTE_SERVICE_ACCOUNT_TOKEN")
 
 	bearerRe = regexp.MustCompile(`[A-Z|a-z0-9\-\._~\+\/]+=*`)
 )
@@ -49,17 +49,17 @@ func getEnv(key, defaultValue string) string {
 
 func main() {
 	var err error
-	if os.Getenv("KSM_RESYNC_PERIOD") != "" {
-		*flagResyncPeriod, err = time.ParseDuration(os.Getenv("KSM_RESYNC_PERIOD"))
+	if os.Getenv("SSM_RESYNC_PERIOD") != "" {
+		*flagResyncPeriod, err = time.ParseDuration(os.Getenv("SSM_RESYNC_PERIOD"))
 		if err != nil {
-			fmt.Printf("KSM_RESYNC_PERIOD must be a duration (https://golang.org/pkg/time/#Duration)")
+			fmt.Printf("SSM_RESYNC_PERIOD must be a duration (https://golang.org/pkg/time/#Duration)")
 			os.Exit(1)
 		}
 	}
-	if os.Getenv("KSM_SVC_SYNC") != "" {
-		*flagSvcSync, err = strconv.ParseBool(os.Getenv("KSM_SVC_SYNC"))
+	if os.Getenv("SSM_SVC_SYNC") != "" {
+		*flagSvcSync, err = strconv.ParseBool(os.Getenv("SSM_SVC_SYNC"))
 		if err != nil {
-			fmt.Printf("KSM_SVC_SYNC must be a boolean: 'true' | 'false'")
+			fmt.Printf("SSM_SVC_SYNC must be a boolean: 'true' | 'false'")
 			os.Exit(1)
 		}
 	}
@@ -96,7 +96,7 @@ func main() {
 	// Create a label to help syncing on startup
 	MirrorLabels["mirror-svc-prefix-sync"] = *flagSvcPrefix
 
-	log.InitLogger("kube-service-mirror", *flagLogLevel)
+	log.InitLogger("semaphore-service-mirror", *flagLogLevel)
 
 	// Get a kube client to use with the watchers
 	homeClient, err := kube.ClientFromConfig(*flagKubeConfigPath)

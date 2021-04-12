@@ -12,8 +12,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/utilitywarehouse/kube-service-mirror/kube"
-	"github.com/utilitywarehouse/kube-service-mirror/log"
+	"github.com/utilitywarehouse/semaphore-service-mirror/kube"
+	"github.com/utilitywarehouse/semaphore-service-mirror/log"
 )
 
 var (
