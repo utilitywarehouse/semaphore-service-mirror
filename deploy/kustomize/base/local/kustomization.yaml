@@ -4,6 +4,6 @@ resources:
   - deployment.yaml
   - role.yaml
 images:
-  - name: kube-service-mirror
-    newName: quay.io/utilitywarehouse/kube-service-mirror
+  - name: semaphore-service-mirror
+    newName: quay.io/utilitywarehouse/semaphore-service-mirror
     newTag: v1.17.4-2

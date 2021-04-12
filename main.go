@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/utilitywarehouse/kube-service-mirror/kube"
-	"github.com/utilitywarehouse/kube-service-mirror/log"
+	"github.com/utilitywarehouse/semaphore-service-mirror/kube"
+	"github.com/utilitywarehouse/semaphore-service-mirror/log"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -96,7 +96,7 @@ func main() {
 	// Create a label to help syncing on startup
 	MirrorLabels["mirror-svc-prefix-sync"] = *flagSvcPrefix
 
-	log.InitLogger("kube-service-mirror", *flagLogLevel)
+	log.InitLogger("semaphore-service-mirror", *flagLogLevel)
 
 	// Get a kube client to use with the watchers
 	homeClient, err := kube.ClientFromConfig(*flagKubeConfigPath)

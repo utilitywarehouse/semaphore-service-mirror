@@ -1,4 +1,4 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 bases:
-  - github.com/utilitywarehouse/kube-service-mirror//deploy/kustomize/base/remote?ref=v1.17.4-1
+  - github.com/utilitywarehouse/semaphore-service-mirror//deploy/kustomize/base/remote?ref=v1.17.4-1

@@ -1,4 +1,4 @@
-module github.com/utilitywarehouse/kube-service-mirror
+module github.com/utilitywarehouse/semaphore-service-mirror
 
 go 1.15
 

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/utilitywarehouse/kube-service-mirror/log"
+	"github.com/utilitywarehouse/semaphore-service-mirror/log"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -50,7 +50,7 @@ func TestAddService(t *testing.T) {
 
 	ctx := context.Background()
 
-	log.InitLogger("kube-service-mirror-test", "debug")
+	log.InitLogger("semaphore-service-mirror-test", "debug")
 	fakeClient := fake.NewSimpleClientset()
 
 	testRunner := &Runner{
@@ -134,7 +134,7 @@ func TestModifyService(t *testing.T) {
 
 	ctx := context.Background()
 
-	log.InitLogger("kube-service-mirror-test", "debug")
+	log.InitLogger("semaphore-service-mirror-test", "debug")
 
 	testPorts := []v1.ServicePort{v1.ServicePort{Port: 1}}
 	// Service on the remote cluster
@@ -207,7 +207,7 @@ func TestServiceSync(t *testing.T) {
 
 	ctx := context.Background()
 
-	log.InitLogger("kube-service-mirror-test", "debug")
+	log.InitLogger("semaphore-service-mirror-test", "debug")
 
 	testPorts := []v1.ServicePort{v1.ServicePort{Port: 1}}
 	// Service on the remote cluster

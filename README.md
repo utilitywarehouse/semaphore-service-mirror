@@ -1,4 +1,4 @@
-# kube-service-mirror
+# semaphore-service-mirror
 
 Small app that watches for kubernetes services and endpoints in a target cluster
 and mirrors them in a local namespace. Can be used in conjunction with coredns
@@ -7,7 +7,7 @@ able to route virtual services for remote pods.
 
 ## Usage
 ```
-Usage of kube-service-mirror:
+Usage of semaphore-service-mirror:
   -kube-config string
         Path of a kube config file, if not provided the app will try to get in cluster config
   -label-selector string
