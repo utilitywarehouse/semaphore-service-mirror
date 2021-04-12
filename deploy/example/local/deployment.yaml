@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: semaphore-service-mirror
+  labels:
+    app: semaphore-service-mirror
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: semaphore-service-mirror
+  template:
+    metadata:
+      labels:
+        app: semaphore-service-mirror
+    spec:
+      serviceAccountName: semaphore-service-mirror
+      containers:
+        - name: semaphore-service-mirror
+          image: semaphore-service-mirror
+          env:
+            - name: SSM_REMOTE_SERVICE_ACCOUNT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: remote-kube-token
+                  key: token
+            - name: SSM_REMOTE_API_URL
+              value: "https://lb.master.k8s.exp-1.gcp.uw.systems"
+            - name: SSM_REMOTE_CA_URL
+              value: "https://kube-ca-cert.exp-1.gcp.uw.systems"
+            - name: SSM_LABEL_SELECTOR
+              value: "uw.systems/mirror=true"
+            - name: SSM_MIRROR_NS
+              value: "sys-service-mirror"
+            - name: SSM_SVC_PREFIX
+              value: "remote-cluster"
+          ports:
+            - name: readiness-port
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: readiness-port
+            periodSeconds: 10
+            failureThreshold: 1

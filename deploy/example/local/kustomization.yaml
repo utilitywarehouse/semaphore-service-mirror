@@ -2,8 +2,13 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - deployment.yaml
-  - role.yaml
+  - rbac.yaml
+secretGenerator:
+  - name: remote-kube-token
+    type: Opaque
+    files:
+      - token=secrets/remote-kube-token
 images:
   - name: semaphore-service-mirror
     newName: quay.io/utilitywarehouse/semaphore-service-mirror
-    newTag: v1.17.4-2
+    newTag: master

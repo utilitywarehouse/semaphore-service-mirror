@@ -1,0 +1,31 @@
+# Cluster role and serviceaccount to be used by remote instances of
+# semaphore-service-mirror in order to be able to mirror from this cluster
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: semaphore-service-mirror-remote
+rules:
+- apiGroups: [""]
+  resources:
+  - services
+  - endpoints
+  verbs: ["get", "list", "watch"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: semaphore-service-mirror-remote
+subjects:
+- kind: ServiceAccount
+  name: semaphore-service-mirror-remote
+  namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: semaphore-service-mirror-remote
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: semaphore-service-mirror-remote
+  namespace: kube-system
