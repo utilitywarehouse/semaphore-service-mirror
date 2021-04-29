@@ -1,7 +1,6 @@
 package kube
 
 import (
-	"errors"
 	"fmt"
 	"io"
 
@@ -13,34 +12,34 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-
 	// in case of local kube config
 	// _ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
-
-	"github.com/utilitywarehouse/semaphore-service-mirror/log"
 )
 
-type CertMan struct {
+type certMan struct {
 	caURL string
 }
 
-func (cm *CertMan) verifyConn(cs tls.ConnectionState) error {
+func (cm *certMan) verifyConn(cs tls.ConnectionState) error {
 	resp, err := http.Get(cm.caURL)
+	if err != nil {
+		return fmt.Errorf("error getting remote CA from %s: %v", cm.caURL, err)
+	}
 	defer func() {
 		io.Copy(ioutil.Discard, resp.Body)
 		resp.Body.Close()
 	}()
-	if err != nil {
-		log.Logger.Error(
-			"error getting remote CA",
-			"err", err)
-		return err
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("expected %d response from %s, got %d", http.StatusOK, cm.caURL, resp.StatusCode)
 	}
 	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("error reading response body from %s: %v", cm.caURL, err)
+	}
 	roots := x509.NewCertPool()
 	ok := roots.AppendCertsFromPEM(body)
 	if !ok {
-		return errors.New("failed to parse root certificate")
+		return fmt.Errorf("failed to parse root certificate from %s", cm.caURL)
 	}
 	opts := x509.VerifyOptions{
 		DNSName: cs.ServerName,
@@ -52,7 +51,7 @@ func (cm *CertMan) verifyConn(cs tls.ConnectionState) error {
 
 // Client returns a Kubernetes client (clientset) from token, apiURL and caURL
 func Client(token, apiURL, caURL string) (*kubernetes.Clientset, error) {
-	cm := &CertMan{caURL}
+	cm := &certMan{caURL}
 	conf := &rest.Config{
 		Host: apiURL,
 		Transport: &http.Transport{
