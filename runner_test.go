@@ -10,8 +10,8 @@ import (
 	"github.com/utilitywarehouse/semaphore-service-mirror/log"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/cache"
 )
 
 // To make expected types
@@ -28,7 +28,6 @@ type TestSpec struct {
 }
 
 func assertExpectedServices(t *testing.T, ctx context.Context, expectedSvcs []TestSvc, fakeClient *fake.Clientset) {
-
 	svcs, err := fakeClient.CoreV1().Services("").List(
 		ctx,
 		metav1.ListOptions{},
@@ -47,23 +46,18 @@ func assertExpectedServices(t *testing.T, ctx context.Context, expectedSvcs []Te
 }
 
 func TestAddService(t *testing.T) {
-
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	log.InitLogger("semaphore-service-mirror-test", "debug")
 	fakeClient := fake.NewSimpleClientset()
-
-	testRunner := &Runner{
-		client:    fakeClient,
-		namespace: "local-ns",
-	}
 
 	testPorts := []v1.ServicePort{v1.ServicePort{Port: 1}}
 	testSvc := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-svc",
 			Namespace: "remote-ns",
-			Labels:    map[string]string{"test-svc": "true"},
+			Labels:    map[string]string{"uw.systems/test": "true"},
 		},
 		Spec: v1.ServiceSpec{
 			Ports:     testPorts,
@@ -71,10 +65,23 @@ func TestAddService(t *testing.T) {
 			ClusterIP: "1.1.1.1",
 		},
 	}
+	fakeWatchClient := fake.NewSimpleClientset(testSvc)
+
+	testRunner := NewRunner(
+		fakeClient,
+		fakeWatchClient,
+		"local-ns",
+		"prefix",
+		"uw.systems/test=true",
+		60*time.Minute,
+		true,
+	)
+	go testRunner.serviceWatcher.Run()
+	cache.WaitForNamedCacheSync("serviceWatcher", ctx.Done(), testRunner.serviceWatcher.HasSynced)
 
 	// Test create cluster ip service - should create 1 service with no
 	// cluster ip specified, the same ports and nil selector
-	testRunner.ServiceEventHandler(watch.Added, &v1.Service{}, testSvc)
+	testRunner.reconcileService("test-svc", "remote-ns")
 
 	expectedSpec := TestSpec{
 		Ports:     testPorts,
@@ -82,48 +89,58 @@ func TestAddService(t *testing.T) {
 		Selector:  nil,
 	}
 	expectedSvcs := []TestSvc{TestSvc{
-		Name:      fmt.Sprintf("test-svc-%s-remote-ns", SEPARATOR),
+		Name:      fmt.Sprintf("prefix-test-svc-%s-remote-ns", SEPARATOR),
 		Namespace: "local-ns",
 		Spec:      expectedSpec,
 	}}
 	assertExpectedServices(t, ctx, expectedSvcs, fakeClient)
+}
+
+func TestAddHeadlessService(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	log.InitLogger("semaphore-service-mirror-test", "debug")
+	fakeClient := fake.NewSimpleClientset()
+
+	testPorts := []v1.ServicePort{v1.ServicePort{Port: 1}}
+	testSvc := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-svc",
+			Namespace: "remote-ns",
+			Labels:    map[string]string{"uw.systems/test": "true"},
+		},
+		Spec: v1.ServiceSpec{
+			Ports:     testPorts,
+			Selector:  map[string]string{"selector": "x"},
+			ClusterIP: "None",
+		},
+	}
+	fakeWatchClient := fake.NewSimpleClientset(testSvc)
+
+	testRunner := NewRunner(
+		fakeClient,
+		fakeWatchClient,
+		"local-ns",
+		"prefix",
+		"uw.systems/test=true",
+		60*time.Minute,
+		true,
+	)
+	go testRunner.serviceWatcher.Run()
+	cache.WaitForNamedCacheSync("serviceWatcher", ctx.Done(), testRunner.serviceWatcher.HasSynced)
 
 	// Test create headless service - should create 1 service with "None"
 	// cluster ip, the same ports and nil selector
-	fakeClient = fake.NewSimpleClientset() // reset client to clear svc
-	testRunner = &Runner{
-		client:    fakeClient,
-		namespace: "local-ns",
-	}
-	testSvc.Spec.ClusterIP = "None" // headless service
+	testRunner.reconcileService("test-svc", "remote-ns")
 
-	testRunner.ServiceEventHandler(watch.Added, &v1.Service{}, testSvc)
-
-	expectedSpec = TestSpec{
+	expectedSpec := TestSpec{
 		Ports:     testPorts,
 		ClusterIP: "None",
 		Selector:  nil,
 	}
-	expectedSvcs = []TestSvc{TestSvc{
-		Name:      fmt.Sprintf("test-svc-%s-remote-ns", SEPARATOR),
-		Namespace: "local-ns",
-		Spec:      expectedSpec,
-	}}
-	assertExpectedServices(t, ctx, expectedSvcs, fakeClient)
-
-	// Test add on existing triggers update
-	updatePorts := []v1.ServicePort{v1.ServicePort{Port: 2}}
-	testSvc.Spec.Ports = updatePorts
-
-	testRunner.ServiceEventHandler(watch.Added, &v1.Service{}, testSvc)
-
-	expectedSpec = TestSpec{
-		Ports:     updatePorts,
-		ClusterIP: "None",
-		Selector:  nil,
-	}
-	expectedSvcs = []TestSvc{TestSvc{
-		Name:      fmt.Sprintf("test-svc-%s-remote-ns", SEPARATOR),
+	expectedSvcs := []TestSvc{TestSvc{
+		Name:      fmt.Sprintf("prefix-test-svc-%s-remote-ns", SEPARATOR),
 		Namespace: "local-ns",
 		Spec:      expectedSpec,
 	}}
@@ -131,47 +148,112 @@ func TestAddService(t *testing.T) {
 }
 
 func TestModifyService(t *testing.T) {
-
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	log.InitLogger("semaphore-service-mirror-test", "debug")
 
-	testPorts := []v1.ServicePort{v1.ServicePort{Port: 1}}
-	// Service on the remote cluster
+	existingPorts := []v1.ServicePort{v1.ServicePort{Port: 1}}
+	existingSvc := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("prefix-test-svc-%s-remote-ns", SEPARATOR),
+			Namespace: "local-ns",
+		},
+		Spec: v1.ServiceSpec{
+			Ports:     existingPorts,
+			ClusterIP: "None",
+		},
+	}
+	fakeClient := fake.NewSimpleClientset(existingSvc)
+
+	testPorts := []v1.ServicePort{v1.ServicePort{Port: 2}}
 	testSvc := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-svc",
 			Namespace: "remote-ns",
-			Labels:    map[string]string{"test-svc": "true"},
+			Labels:    map[string]string{"uw.systems/test": "true"},
 		},
 		Spec: v1.ServiceSpec{
 			Ports:     testPorts,
 			Selector:  map[string]string{"selector": "x"},
-			ClusterIP: "1.1.1.1",
+			ClusterIP: "None",
 		},
 	}
+	fakeWatchClient := fake.NewSimpleClientset(testSvc)
 
-	// Create mirrored service and feed it to the fake client
-	mirroredSvc := &v1.Service{
+	testRunner := NewRunner(
+		fakeClient,
+		fakeWatchClient,
+		"local-ns",
+		"prefix",
+		"uw.systems/test=true",
+		60*time.Minute,
+		true,
+	)
+	go testRunner.serviceWatcher.Run()
+	cache.WaitForNamedCacheSync("serviceWatcher", ctx.Done(), testRunner.serviceWatcher.HasSynced)
+
+	testRunner.reconcileService("test-svc", "remote-ns")
+
+	expectedSpec := TestSpec{
+		Ports:     testPorts,
+		ClusterIP: "None",
+		Selector:  nil,
+	}
+	expectedSvcs := []TestSvc{TestSvc{
+		Name:      fmt.Sprintf("prefix-test-svc-%s-remote-ns", SEPARATOR),
+		Namespace: "local-ns",
+		Spec:      expectedSpec,
+	}}
+	assertExpectedServices(t, ctx, expectedSvcs, fakeClient)
+}
+
+func TestModifyServiceNoChange(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	log.InitLogger("semaphore-service-mirror-test", "debug")
+
+	existingPorts := []v1.ServicePort{v1.ServicePort{Port: 1}}
+	existingSvc := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("test-svc-%s-remote-ns", SEPARATOR),
+			Name:      fmt.Sprintf("prefix-test-svc-%s-remote-ns", SEPARATOR),
 			Namespace: "local-ns",
-			Labels:    MirrorLabels,
 		},
 		Spec: v1.ServiceSpec{
-			Ports:    testPorts,
-			Selector: nil,
+			Ports:     existingPorts,
+			ClusterIP: "None",
 		},
 	}
-	fakeClient := fake.NewSimpleClientset(mirroredSvc)
+	fakeClient := fake.NewSimpleClientset(existingSvc)
 
-	testRunner := &Runner{
-		client:    fakeClient,
-		namespace: "local-ns",
+	testSvc := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-svc",
+			Namespace: "remote-ns",
+			Labels:    map[string]string{"uw.systems/test": "true"},
+		},
+		Spec: v1.ServiceSpec{
+			Ports:     existingPorts,
+			Selector:  map[string]string{"selector": "x"},
+			ClusterIP: "None",
+		},
 	}
+	fakeWatchClient := fake.NewSimpleClientset(testSvc)
 
-	// Test update with the same service won't change the mirrored
-	testRunner.ServiceEventHandler(watch.Modified, &v1.Service{}, testSvc)
+	testRunner := NewRunner(
+		fakeClient,
+		fakeWatchClient,
+		"local-ns",
+		"prefix",
+		"uw.systems/test=true",
+		60*time.Minute,
+		true,
+	)
+	go testRunner.serviceWatcher.Run()
+	cache.WaitForNamedCacheSync("serviceWatcher", ctx.Done(), testRunner.serviceWatcher.HasSynced)
+
+	testRunner.reconcileService("test-svc", "remote-ns")
 
 	svcs, err := fakeClient.CoreV1().Services("").List(
 		ctx,
@@ -182,29 +264,10 @@ func TestModifyService(t *testing.T) {
 	}
 
 	assert.Equal(t, 1, len(svcs.Items))
-	assert.Equal(t, *mirroredSvc, svcs.Items[0])
-
-	// Test update ports
-	updatePorts := []v1.ServicePort{v1.ServicePort{Port: 2}}
-	testSvc.Spec.Ports = updatePorts
-
-	testRunner.ServiceEventHandler(watch.Modified, &v1.Service{}, testSvc)
-
-	expectedSpec := TestSpec{
-		Ports:     updatePorts,
-		ClusterIP: "",
-		Selector:  nil,
-	}
-	expectedSvcs := []TestSvc{TestSvc{
-		Name:      fmt.Sprintf("test-svc-%s-remote-ns", SEPARATOR),
-		Namespace: "local-ns",
-		Spec:      expectedSpec,
-	}}
-	assertExpectedServices(t, ctx, expectedSvcs, fakeClient)
+	assert.Equal(t, *existingSvc, svcs.Items[0])
 }
 
 func TestServiceSync(t *testing.T) {
-
 	ctx := context.Background()
 
 	log.InitLogger("semaphore-service-mirror-test", "debug")
@@ -252,6 +315,9 @@ func TestServiceSync(t *testing.T) {
 	// feed them to the fake client
 	fakeClient := fake.NewSimpleClientset(mirroredSvc, staleSvc)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	testRunner := NewRunner(
 		fakeClient,
 		fakeWatchClient,
@@ -261,11 +327,13 @@ func TestServiceSync(t *testing.T) {
 		60*time.Minute,
 		true,
 	)
+	go testRunner.serviceWatcher.Run()
+	cache.WaitForNamedCacheSync("serviceWatcher", ctx.Done(), testRunner.serviceWatcher.HasSynced)
 
-	// Run will trigger a sync. Verify that old service is deleted
-	testRunner.Run()
-	defer testRunner.Stop()
-
+	// ServiceSync will trigger a sync. Verify that old service is deleted
+	if err := testRunner.ServiceSync(); err != nil {
+		t.Fatal(err)
+	}
 	svcs, err := fakeClient.CoreV1().Services("").List(
 		ctx,
 		metav1.ListOptions{},

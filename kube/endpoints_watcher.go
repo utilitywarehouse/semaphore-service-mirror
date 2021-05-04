@@ -3,6 +3,7 @@ package kube
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -109,6 +110,18 @@ func (ew *EndpointsWatcher) Get(name string) (*v1.Endpoints, error) {
 		}
 	}
 	return &v1.Endpoints{}, ERROR_ENDPOINTS_NOT_EXIST
+}
+
+func (ew *EndpointsWatcher) List() ([]*v1.Endpoints, error) {
+	var endpoints []*v1.Endpoints
+	for _, obj := range ew.store.List() {
+		e, ok := obj.(*v1.Endpoints)
+		if !ok {
+			return nil, fmt.Errorf("unexpected object in store: %+v", obj)
+		}
+		endpoints = append(endpoints, e)
+	}
+	return endpoints, nil
 }
 
 func (ew *EndpointsWatcher) Healthy() bool {
