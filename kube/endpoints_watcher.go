@@ -2,11 +2,11 @@ package kube
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
@@ -14,10 +14,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/utilitywarehouse/semaphore-service-mirror/log"
-)
-
-var (
-	ERROR_ENDPOINTS_NOT_EXIST = errors.New("endpoints does not exist in store")
 )
 
 type EndpointsEventHandler = func(eventType watch.EventType, old *v1.Endpoints, new *v1.Endpoints)
@@ -97,19 +93,18 @@ func (ew *EndpointsWatcher) Stop() {
 	close(ew.stopChannel)
 }
 
-func (ew *EndpointsWatcher) Get(name string) (*v1.Endpoints, error) {
-	// TODO: Can't make GetByKey work
-	for _, obj := range ew.store.List() {
-		endpoints, ok := obj.(*v1.Endpoints)
-		if !ok {
-			log.Logger.Error("cannot read endpoints object: %s", obj)
-			continue
-		}
-		if endpoints.Name == name {
-			return endpoints, nil
-		}
+func (ew *EndpointsWatcher) Get(name, namespace string) (*v1.Endpoints, error) {
+	key := namespace + "/" + name
+
+	obj, exists, err := ew.store.GetByKey(key)
+	if err != nil {
+		return nil, err
 	}
-	return &v1.Endpoints{}, ERROR_ENDPOINTS_NOT_EXIST
+	if !exists {
+		return nil, errors.NewNotFound(v1.Resource("endpoints"), key)
+	}
+
+	return obj.(*v1.Endpoints), nil
 }
 
 func (ew *EndpointsWatcher) List() ([]*v1.Endpoints, error) {

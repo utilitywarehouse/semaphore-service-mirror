@@ -120,21 +120,21 @@ func (r *Runner) reconcileService(name, namespace string) error {
 	// Get the remote service
 	log.Logger.Info("getting remote service", "namespace", namespace, "name", name)
 	remoteSvc, err := r.getRemoteService(name, namespace)
-	if err != nil {
-		return fmt.Errorf("getting remote service: %v", err)
-	}
-	// If the remote service doesn't exist, clean up the local mirror service (if it
-	// exists)
-	if remoteSvc == nil {
+	if errors.IsNotFound(err) {
+		// If the remote service doesn't exist, clean up the local mirror service (if it
+		// exists)
 		log.Logger.Info("remote service not found, deleting local service", "namespace", r.namespace, "name", mirrorName)
 		if err := r.deleteService(mirrorName, r.namespace); err != nil && !errors.IsNotFound(err) {
 			return fmt.Errorf("deleting service %s/%s: %v", r.namespace, mirrorName, err)
 		}
 		return nil
+	} else if err != nil {
+		return fmt.Errorf("getting remote service: %v", err)
 	}
 
 	// If the mirror service doesn't exist, create it. Otherwise, update it.
-	if mirrorSvc, err := r.getService(mirrorName, r.namespace); errors.IsNotFound(err) {
+	mirrorSvc, err := r.getService(mirrorName, r.namespace)
+	if errors.IsNotFound(err) {
 		log.Logger.Info("local service not found, creating service", "namespace", r.namespace, "name", mirrorName)
 		if _, err := r.createService(mirrorName, r.namespace, MirrorLabels, remoteSvc.Spec.Ports, isHeadless(remoteSvc)); err != nil {
 			return fmt.Errorf("creating service %s/%s: %v", r.namespace, mirrorName, err)
@@ -152,17 +152,7 @@ func (r *Runner) reconcileService(name, namespace string) error {
 }
 
 func (r *Runner) getRemoteService(name, namespace string) (*v1.Service, error) {
-	svcs, err := r.serviceWatcher.List()
-	if err != nil {
-		return nil, err
-	}
-	for _, svc := range svcs {
-		if svc.Namespace == namespace && svc.Name == name {
-			return svc, nil
-		}
-	}
-
-	return nil, nil
+	return r.serviceWatcher.Get(name, namespace)
 }
 
 func (r *Runner) getService(name, namespace string) (*v1.Service, error) {
@@ -302,22 +292,21 @@ func (r *Runner) reconcileEndpoints(name, namespace string) error {
 	// Get the remote endpoints
 	log.Logger.Info("getting remote endpoints", "namespace", namespace, "name", name)
 	remoteEndpoints, err := r.getRemoteEndpoints(name, namespace)
-	if err != nil {
-		return fmt.Errorf("getting remote endpoints %s/%s: %v", namespace, name, err)
-	}
-	// If the endpoints doesn't exist, clean up the local mirror endpoints (if it
-	// exists)
-	if remoteEndpoints == nil {
+	if errors.IsNotFound(err) {
 		log.Logger.Info("remote endpoints not found, removing local endpoints", "namespace", namespace, "name", name)
 		if err := r.deleteEndpoints(mirrorName, r.namespace); err != nil && !errors.IsNotFound(err) {
 			return fmt.Errorf("deleting endpoints %s/%s: %v", r.namespace, mirrorName, err)
 		}
 		return nil
+	} else if err != nil {
+		return fmt.Errorf("getting remote endpoints %s/%s: %v", namespace, name, err)
+
 	}
 
 	// If the mirror endpoints doesn't exist, create it. Otherwise, update it.
 	log.Logger.Info("getting local endpoints", "namespace", r.namespace, "name", mirrorName)
-	if _, err := r.getEndpoints(mirrorName, r.namespace); errors.IsNotFound(err) {
+	_, err = r.getEndpoints(mirrorName, r.namespace)
+	if errors.IsNotFound(err) {
 		log.Logger.Info("local endpoints not found, creating endpoints", "namespace", r.namespace, "name", mirrorName)
 		if _, err := r.createEndpoints(mirrorName, r.namespace, MirrorLabels, remoteEndpoints.Subsets); err != nil {
 			return fmt.Errorf("creating endpoints %s/%s: %v", r.namespace, mirrorName, err)
@@ -336,17 +325,7 @@ func (r *Runner) reconcileEndpoints(name, namespace string) error {
 }
 
 func (r *Runner) getRemoteEndpoints(name, namespace string) (*v1.Endpoints, error) {
-	endpoints, err := r.endpointsWatcher.List()
-	if err != nil {
-		return nil, err
-	}
-	for _, e := range endpoints {
-		if e.Namespace == namespace && e.Name == name {
-			return e, nil
-		}
-	}
-
-	return nil, nil
+	return r.endpointsWatcher.Get(name, namespace)
 }
 
 func (r *Runner) getEndpoints(name, namespace string) (*v1.Endpoints, error) {
