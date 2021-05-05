@@ -6,6 +6,7 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
@@ -94,6 +95,20 @@ func (sw *ServiceWatcher) Stop() {
 
 func (sw *ServiceWatcher) HasSynced() bool {
 	return sw.controller.HasSynced()
+}
+
+func (sw *ServiceWatcher) Get(name, namespace string) (*v1.Service, error) {
+	key := namespace + "/" + name
+
+	obj, exists, err := sw.store.GetByKey(key)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.NewNotFound(v1.Resource("service"), key)
+	}
+
+	return obj.(*v1.Service), nil
 }
 
 func (sw *ServiceWatcher) List() ([]*v1.Service, error) {

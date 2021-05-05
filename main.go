@@ -20,7 +20,7 @@ var (
 	flagKubeConfigPath       = flag.String("kube-config", getEnv("SSM_KUBE_CONFIG", ""), "Path of a kube config file, if not provided the app will try to get in cluster config")
 	flagTargetKubeConfigPath = flag.String("target-kube-config", getEnv("SSM_TARGET_KUBE_CONFIG", ""), "Path of the target cluster kube config file to mirrot services from")
 	flagLogLevel             = flag.String("log-level", getEnv("SSM_LOG_LEVEL", "info"), "Log level")
-	flagResyncPeriod         = flag.Duration("resync-period", 60*time.Minute, "Namespace watcher cache resync period")
+	flagResyncPeriod         = flag.Duration("resync-period", 0, "Watcher cache resync period. Disabled by default")
 	flagMirrorNamespace      = flag.String("mirror-ns", getEnv("SSM_MIRROR_NS", ""), "The namespace to create dummy mirror services in")
 	flagSvcPrefix            = flag.String("svc-prefix", getEnv("SSM_SVC_PREFIX", ""), "(required) A prefix to apply on all mirrored services names. Will also be used for initial service sync")
 	flagLabelSelector        = flag.String("label-selector", getEnv("SSM_LABEL_SELECTOR", ""), "(required) Label of services and endpoints to watch and mirror")
