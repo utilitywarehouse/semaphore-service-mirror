@@ -11,9 +11,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/utilitywarehouse/semaphore-service-mirror/kube"
 	"github.com/utilitywarehouse/semaphore-service-mirror/log"
 	"k8s.io/client-go/kubernetes"
+
+	_ "github.com/utilitywarehouse/semaphore-service-mirror/metrics"
 )
 
 var (
@@ -144,6 +147,7 @@ func main() {
 			w.WriteHeader(http.StatusServiceUnavailable)
 		}
 	})
+	sm.Handle("/metrics", promhttp.Handler())
 	log.Logger.Error(
 		"Listen and Serve",
 		"err", http.ListenAndServe(":8080", sm),
