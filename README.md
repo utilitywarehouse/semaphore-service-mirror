@@ -59,6 +59,16 @@ $ echo mirror | xxd -p
 6d6972726f720a
 ```
 
+The format of the generated name is: `<prefix>-<name>-6d6972726f720a-<namespace>`.
+
+It's possible for this name to exceed the 63 character limit imposed by Kubernetes.
+To guard against this, a Gatekeeper constraint template is provided in
+[`gatekeeper/semaphore-mirror-name-length`](gatekeeper/semaphore-mirror-name-length)
+which can be used to validate that remote services won't produce mirror names longer
+than the limit.
+
+Refer to the [example](gatekeeper/semaphore-mirror-name-length/example.yaml).
+
 ## Coredns config example
 
 To create a smoother experience when accessing a service coredns can be

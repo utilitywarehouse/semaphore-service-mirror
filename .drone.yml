@@ -30,3 +30,22 @@ trigger:
   event:
     exclude:
       - pull_request
+---
+kind: pipeline
+type: kubernetes
+name: gatekeeper
+
+steps:
+  - name: test-opa
+    image: openpolicyagent/opa
+    command:
+      - test
+      - --ignore=*.yaml
+      - --ignore=*.json
+      - -v
+      - gatekeeper
+
+trigger:
+  event:
+    exclude:
+      - pull_request

@@ -1,0 +1,17 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: SemaphoreMirrorNameLength
+metadata:
+  name: "mirror-name-length"
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Service"]
+    labelSelector:
+      matchLabels:
+        uw.systems/mirror: "true"
+  parameters:
+    prefixes:
+      - aws
+      - gcp
+      - merit
