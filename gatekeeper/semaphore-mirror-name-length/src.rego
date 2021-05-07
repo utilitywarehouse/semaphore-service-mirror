@@ -4,6 +4,8 @@ package semaphoremirrornamelength
 name_fmt := "%s-%s-73736d-%s"
 
 violation[{"msg": msg}] {
+  input.review.operation != "DELETE"
+
   prefix := input.parameters.prefixes[_]
   name := input.review.object.metadata.name
   namespace := input.review.object.metadata.namespace
