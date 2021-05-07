@@ -51,15 +51,9 @@ Only exception is `-remote-sa-token-path` flag and
 
 In order to make regex matching easier for dns rewrite purposes (see coredns
 example bellow) we use a hardcoded separator between service names and
-namespaces on the generated name for mirrored service.
-We picked that to be `6d6972726f720a` from the hexdump of `mirror`:
+namespaces on the generated name for mirrored service: `73736d`.
 
-```
-$ echo mirror | xxd -p
-6d6972726f720a
-```
-
-The format of the generated name is: `<prefix>-<name>-6d6972726f720a-<namespace>`.
+The format of the generated name is: `<prefix>-<namespace>-73736d-<name>`.
 
 It's possible for this name to exceed the 63 character limit imposed by Kubernetes.
 To guard against this, a Gatekeeper constraint template is provided in
@@ -74,12 +68,12 @@ Refer to the [example](gatekeeper/semaphore-mirror-name-length/example.yaml).
 To create a smoother experience when accessing a service coredns can be
 configured using the `rewrite` functionality:
 ```
-cluster.<target> {
+cluster.example {
     errors
     health
     rewrite continue {
-            name regex ([a-zA-Z0-9-_]*)\.([a-zv0-9-_]*)\.svc\.cluster\.<target> <target>-{1}-6d6972726f720a-{2}.<namespace>.svc.cluster.local
-            answer name <target>-([a-zA-Z0-9-_]*)-6d6972726f720a-([a-zA-Z0-9-_]*)\.<namespace>\.svc\.cluster\.local {1}.{2}.svc.cluster.<target>
+      name regex ([a-zA-Z0-9-_]*\.)?([a-zA-Z0-9-_]*)\.([a-zv0-9-_]*)\.svc\.cluster\.example {1}example-{3}-73736d-{2}.<namespace>.svc.cluster.local
+      answer name ([a-zA-Z0-9-_]*\.)?example-([a-zA-Z0-9-_]*)-73736d-([a-zA-Z0-9-_]*)\.<namespace>\.svc\.cluster\.local {1}{3}.{2}.svc.cluster.example
     }
     kubernetes cluster.local in-addr.arpa ip6.arpa {
       pods insecure
