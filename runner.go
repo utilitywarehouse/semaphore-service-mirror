@@ -22,8 +22,16 @@ var (
 )
 
 const (
-	SEPARATOR = "6d6972726f720a"
+	// Separator is inserted between the namespace and name in the mirror
+	// name to prevent clashes
+	Separator = "73736d"
 )
+
+// generateMirrorName generates a name for mirrored objects based on the name
+// and namespace of the remote object: <prefix>-<namespace>-73736d-<name>
+func generateMirrorName(prefix, namespace, name string) string {
+	return fmt.Sprintf("%s-%s-%s-%s", prefix, namespace, Separator, name)
+}
 
 type Runner struct {
 	ctx              context.Context
@@ -107,15 +115,8 @@ func (r *Runner) Stop() {
 	r.endpointsWatcher.Stop()
 }
 
-func (r *Runner) generateMirrorName(name, namespace string) string {
-	if r.prefix != "" {
-		return fmt.Sprintf("%s-%s-%s-%s", r.prefix, name, SEPARATOR, namespace)
-	}
-	return fmt.Sprintf("%s-%s-%s", name, SEPARATOR, namespace)
-}
-
 func (r *Runner) reconcileService(name, namespace string) error {
-	mirrorName := r.generateMirrorName(name, namespace)
+	mirrorName := generateMirrorName(r.prefix, namespace, name)
 
 	// Get the remote service
 	log.Logger.Info("getting remote service", "namespace", namespace, "name", name)
@@ -189,7 +190,7 @@ func (r *Runner) ServiceSync() error {
 	for _, svc := range storeSvcs {
 		mirrorSvcList = append(
 			mirrorSvcList,
-			r.generateMirrorName(svc.Name, svc.Namespace),
+			generateMirrorName(r.prefix, svc.Namespace, svc.Name),
 		)
 	}
 
@@ -287,7 +288,7 @@ func (r *Runner) ServiceEventHandler(eventType watch.EventType, old *v1.Service,
 }
 
 func (r *Runner) reconcileEndpoints(name, namespace string) error {
-	mirrorName := r.generateMirrorName(name, namespace)
+	mirrorName := generateMirrorName(r.prefix, namespace, name)
 
 	// Get the remote endpoints
 	log.Logger.Info("getting remote endpoints", "namespace", namespace, "name", name)

@@ -89,7 +89,7 @@ func TestAddService(t *testing.T) {
 		Selector:  nil,
 	}
 	expectedSvcs := []TestSvc{TestSvc{
-		Name:      fmt.Sprintf("prefix-test-svc-%s-remote-ns", SEPARATOR),
+		Name:      fmt.Sprintf("prefix-remote-ns-%s-test-svc", Separator),
 		Namespace: "local-ns",
 		Spec:      expectedSpec,
 	}}
@@ -140,7 +140,7 @@ func TestAddHeadlessService(t *testing.T) {
 		Selector:  nil,
 	}
 	expectedSvcs := []TestSvc{TestSvc{
-		Name:      fmt.Sprintf("prefix-test-svc-%s-remote-ns", SEPARATOR),
+		Name:      fmt.Sprintf("prefix-remote-ns-%s-test-svc", Separator),
 		Namespace: "local-ns",
 		Spec:      expectedSpec,
 	}}
@@ -156,7 +156,7 @@ func TestModifyService(t *testing.T) {
 	existingPorts := []v1.ServicePort{v1.ServicePort{Port: 1}}
 	existingSvc := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("prefix-test-svc-%s-remote-ns", SEPARATOR),
+			Name:      fmt.Sprintf("prefix-remote-ns-%s-test-svc", Separator),
 			Namespace: "local-ns",
 		},
 		Spec: v1.ServiceSpec{
@@ -201,7 +201,7 @@ func TestModifyService(t *testing.T) {
 		Selector:  nil,
 	}
 	expectedSvcs := []TestSvc{TestSvc{
-		Name:      fmt.Sprintf("prefix-test-svc-%s-remote-ns", SEPARATOR),
+		Name:      fmt.Sprintf("prefix-remote-ns-%s-test-svc", Separator),
 		Namespace: "local-ns",
 		Spec:      expectedSpec,
 	}}
@@ -217,7 +217,7 @@ func TestModifyServiceNoChange(t *testing.T) {
 	existingPorts := []v1.ServicePort{v1.ServicePort{Port: 1}}
 	existingSvc := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("prefix-test-svc-%s-remote-ns", SEPARATOR),
+			Name:      fmt.Sprintf("prefix-remote-ns-%s-test-svc", Separator),
 			Namespace: "local-ns",
 		},
 		Spec: v1.ServiceSpec{
@@ -291,7 +291,7 @@ func TestServiceSync(t *testing.T) {
 	// Create mirrored service
 	mirroredSvc := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("prefix-test-svc-%s-remote-ns", SEPARATOR),
+			Name:      fmt.Sprintf("prefix-remote-ns-%s-test-svc", Separator),
 			Namespace: "local-ns",
 			Labels:    MirrorLabels,
 		},
@@ -303,7 +303,7 @@ func TestServiceSync(t *testing.T) {
 	// Create stale service
 	staleSvc := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("prefix-old-svc-%s-remote-ns", SEPARATOR),
+			Name:      fmt.Sprintf("prefix-old-svc-%s-remote-ns", Separator),
 			Namespace: "local-ns",
 			Labels:    MirrorLabels,
 		},
@@ -344,7 +344,7 @@ func TestServiceSync(t *testing.T) {
 	assert.Equal(t, 1, len(svcs.Items))
 	assert.Equal(
 		t,
-		fmt.Sprintf("prefix-test-svc-%s-remote-ns", SEPARATOR),
+		fmt.Sprintf("prefix-remote-ns-%s-test-svc", Separator),
 		svcs.Items[0].Name,
 	)
 }
