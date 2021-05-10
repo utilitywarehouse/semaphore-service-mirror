@@ -3,8 +3,25 @@ package semaphoremirrornamelength
 # <prefix>-<namespace>-73736d-<name>
 name_fmt := "%s-%s-73736d-%s"
 
+# always match if matchLabels is nil
+match_labels {
+  not input.parameters.matchLabels
+}
+
+# ensure that every key=value pair in matchLabels is also in metadata.labels
+match_labels {
+  count(input.parameters.matchLabels) == count({label_value | label_value := input.parameters.matchLabels[label_key]; has_label(label_key, label_value)})
+}
+
+# check that label_key=label_value is in metadata.labels
+has_label(label_key, label_value) {
+  input.review.object.metadata.labels[label_key] == label_value
+}
+
 violation[{"msg": msg}] {
   input.review.operation != "DELETE"
+
+  match_labels
 
   prefix := input.parameters.prefixes[_]
   name := input.review.object.metadata.name
