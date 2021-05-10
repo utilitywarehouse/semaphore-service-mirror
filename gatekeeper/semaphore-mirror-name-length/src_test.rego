@@ -49,3 +49,68 @@ test_violation_with_longest_prefix {
 
   count(results) == 1
 }
+
+test_ok_label_missing {
+  results := violation with input as {
+    "parameters": {"matchLabels": {"foo": "bar", "baz": "foo"}, "prefixes": ["merit"]},
+    "review": {"operation": "CREATE", "object": {"metadata": {
+      "name": "this-name-is-far-too-long",
+      "namespace": "this-namespace-is-also-too-long",
+      "labels": {"foo": "bar"},
+    }}},
+  }
+
+  count(results) == 0
+}
+
+test_ok_label_match {
+  results := violation with input as {
+    "parameters": {"matchLabels": {"foo": "bar", "baz": "foo"}, "prefixes": ["merit", "aws", "gcp"]},
+    "review": {"operation": "CREATE", "object": {"metadata": {
+      "name": "example",
+      "namespace": "example-ns",
+      "labels": {"foo": "bar", "baz": "foo"},
+    }}},
+  }
+
+  count(results) == 0
+}
+
+test_ok_label_match_subset {
+  results := violation with input as {
+    "parameters": {"matchLabels": {"foo": "bar", "baz": "foo"}, "prefixes": ["merit", "aws", "gcp"]},
+    "review": {"operation": "CREATE", "object": {"metadata": {
+      "name": "example",
+      "namespace": "example-ns",
+      "labels": {"foo": "bar", "baz": "foo", "another": "label"},
+    }}},
+  }
+
+  count(results) == 0
+}
+
+test_violation_label_match {
+  results := violation with input as {
+    "parameters": {"matchLabels": {"foo": "bar", "baz": "foo"}, "prefixes": ["merit"]},
+    "review": {"operation": "CREATE", "object": {"metadata": {
+      "name": "this-name-is-far-too-long",
+      "namespace": "this-namespace-is-also-too-long",
+      "labels": {"foo": "bar", "baz": "foo"},
+    }}},
+  }
+
+  count(results) == 1
+}
+
+test_violation_label_match_subset {
+  results := violation with input as {
+    "parameters": {"matchLabels": {"foo": "bar", "baz": "foo"}, "prefixes": ["merit"]},
+    "review": {"operation": "CREATE", "object": {"metadata": {
+      "name": "this-name-is-far-too-long",
+      "namespace": "this-namespace-is-also-too-long",
+      "labels": {"foo": "bar", "baz": "foo", "another": "label"},
+    }}},
+  }
+
+  count(results) == 1
+}

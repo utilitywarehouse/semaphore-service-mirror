@@ -11,6 +11,8 @@ spec:
       matchLabels:
         uw.systems/mirror: "true"
   parameters:
+    matchLabels:
+      uw.systems/mirror: "true"
     prefixes:
       - aws
       - gcp
