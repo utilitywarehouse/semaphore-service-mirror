@@ -14,6 +14,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/utilitywarehouse/semaphore-service-mirror/log"
+	"github.com/utilitywarehouse/semaphore-service-mirror/metrics"
 )
 
 type EndpointsEventHandler = func(eventType watch.EventType, old *v1.Endpoints, new *v1.Endpoints)
@@ -27,11 +28,12 @@ type EndpointsWatcher struct {
 	controller    cache.Controller
 	eventHandler  EndpointsEventHandler
 	labelSelector string
+	name          string
 	ListHealthy   bool
 	WatchHealthy  bool
 }
 
-func NewEndpointsWatcher(client kubernetes.Interface, resyncPeriod time.Duration, handler EndpointsEventHandler, labelSelector string) *EndpointsWatcher {
+func NewEndpointsWatcher(name string, client kubernetes.Interface, resyncPeriod time.Duration, handler EndpointsEventHandler, labelSelector string) *EndpointsWatcher {
 	return &EndpointsWatcher{
 		ctx:           context.Background(),
 		client:        client,
@@ -39,6 +41,7 @@ func NewEndpointsWatcher(client kubernetes.Interface, resyncPeriod time.Duration
 		stopChannel:   make(chan struct{}),
 		eventHandler:  handler,
 		labelSelector: labelSelector,
+		name:          name,
 	}
 }
 
@@ -48,7 +51,7 @@ func (ew *EndpointsWatcher) Init() {
 			options.LabelSelector = ew.labelSelector
 			l, err := ew.client.CoreV1().Endpoints(metav1.NamespaceAll).List(ew.ctx, options)
 			if err != nil {
-				log.Logger.Error("ew: list error", "err", err)
+				log.Logger.Error("endpoints list error", "watcher", ew.name, "err", err)
 				ew.ListHealthy = false
 			} else {
 				ew.ListHealthy = true
@@ -59,7 +62,7 @@ func (ew *EndpointsWatcher) Init() {
 			options.LabelSelector = ew.labelSelector
 			w, err := ew.client.CoreV1().Endpoints(metav1.NamespaceAll).Watch(ew.ctx, options)
 			if err != nil {
-				log.Logger.Error("ew: watch error", "err", err)
+				log.Logger.Error("endpoints watch error", "watcher", ew.name, "err", err)
 				ew.WatchHealthy = false
 			} else {
 				ew.WatchHealthy = true
@@ -69,27 +72,36 @@ func (ew *EndpointsWatcher) Init() {
 	}
 	eventHandler := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			ew.eventHandler(watch.Added, nil, obj.(*v1.Endpoints))
+			ew.handleEvent(watch.Added, nil, obj.(*v1.Endpoints))
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			ew.eventHandler(watch.Modified, oldObj.(*v1.Endpoints), newObj.(*v1.Endpoints))
+			ew.handleEvent(watch.Modified, oldObj.(*v1.Endpoints), newObj.(*v1.Endpoints))
 		},
 		DeleteFunc: func(obj interface{}) {
-			ew.eventHandler(watch.Deleted, obj.(*v1.Endpoints), nil)
+			ew.handleEvent(watch.Deleted, obj.(*v1.Endpoints), nil)
 		},
 	}
 	ew.store, ew.controller = cache.NewInformer(listWatch, &v1.Endpoints{}, ew.resyncPeriod, eventHandler)
 }
 
+func (ew *EndpointsWatcher) handleEvent(eventType watch.EventType, oldObj, newObj *v1.Endpoints) {
+	metrics.IncKubeWatcherEvents(ew.name, "endpoints", eventType)
+	metrics.SetKubeWatcherObjects(ew.name, "endpoints", float64(len(ew.store.List())))
+
+	if ew.eventHandler != nil {
+		ew.eventHandler(eventType, oldObj, newObj)
+	}
+}
+
 func (ew *EndpointsWatcher) Run() {
-	log.Logger.Info("starting endpoints watcher")
+	log.Logger.Info("starting endpoints watcher", "watcher", ew.name)
 	// Running controller will block until writing on the stop channel.
 	ew.controller.Run(ew.stopChannel)
-	log.Logger.Info("stopped endpoints watcher")
+	log.Logger.Info("stopped endpoints watcher", "watcher", ew.name)
 }
 
 func (ew *EndpointsWatcher) Stop() {
-	log.Logger.Info("stopping endpoints watcher")
+	log.Logger.Info("stopping endpoints watcher", "watcher", ew.name)
 	close(ew.stopChannel)
 }
 
