@@ -328,7 +328,9 @@ func TestServiceSync(t *testing.T) {
 		true,
 	)
 	go testRunner.serviceWatcher.Run()
+	go testRunner.mirrorServiceWatcher.Run()
 	cache.WaitForNamedCacheSync("serviceWatcher", ctx.Done(), testRunner.serviceWatcher.HasSynced)
+	cache.WaitForNamedCacheSync("mirrorServiceWatcher", ctx.Done(), testRunner.mirrorServiceWatcher.HasSynced)
 
 	// ServiceSync will trigger a sync. Verify that old service is deleted
 	if err := testRunner.ServiceSync(); err != nil {

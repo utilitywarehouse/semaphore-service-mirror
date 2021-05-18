@@ -34,16 +34,18 @@ func generateMirrorName(prefix, namespace, name string) string {
 }
 
 type Runner struct {
-	ctx              context.Context
-	client           kubernetes.Interface
-	serviceQueue     *queue
-	serviceWatcher   *kube.ServiceWatcher
-	endpointsQueue   *queue
-	endpointsWatcher *kube.EndpointsWatcher
-	namespace        string
-	prefix           string
-	labelselector    string
-	sync             bool
+	ctx                    context.Context
+	client                 kubernetes.Interface
+	serviceQueue           *queue
+	serviceWatcher         *kube.ServiceWatcher
+	mirrorServiceWatcher   *kube.ServiceWatcher
+	endpointsQueue         *queue
+	endpointsWatcher       *kube.EndpointsWatcher
+	mirrorEndpointsWatcher *kube.EndpointsWatcher
+	namespace              string
+	prefix                 string
+	labelselector          string
+	sync                   bool
 }
 
 func NewRunner(client, watchClient kubernetes.Interface, namespace, prefix, labelselector string, resyncPeriod time.Duration, sync bool) *Runner {
@@ -59,6 +61,7 @@ func NewRunner(client, watchClient kubernetes.Interface, namespace, prefix, labe
 
 	// Create and initialize a service watcher
 	serviceWatcher := kube.NewServiceWatcher(
+		"serviceWatcher",
 		watchClient,
 		resyncPeriod,
 		runner.ServiceEventHandler,
@@ -67,8 +70,20 @@ func NewRunner(client, watchClient kubernetes.Interface, namespace, prefix, labe
 	runner.serviceWatcher = serviceWatcher
 	runner.serviceWatcher.Init()
 
+	// Create and initialize a service watcher for mirrored services
+	mirrorServiceWatcher := kube.NewServiceWatcher(
+		"mirrorServiceWatcher",
+		client,
+		resyncPeriod,
+		nil,
+		labels.Set(MirrorLabels).String(),
+	)
+	runner.mirrorServiceWatcher = mirrorServiceWatcher
+	runner.mirrorServiceWatcher.Init()
+
 	// Create and initialize an endpoints watcher
 	endpointsWatcher := kube.NewEndpointsWatcher(
+		"endpointsWatcher",
 		watchClient,
 		resyncPeriod,
 		runner.EndpointsEventHandler,
@@ -77,17 +92,32 @@ func NewRunner(client, watchClient kubernetes.Interface, namespace, prefix, labe
 	runner.endpointsWatcher = endpointsWatcher
 	runner.endpointsWatcher.Init()
 
+	// Create and initialize an endpoints watcher for mirrored endpoints
+	mirrorEndpointsWatcher := kube.NewEndpointsWatcher(
+		"mirrorEndpointsWatcher",
+		client,
+		resyncPeriod,
+		nil,
+		labels.Set(MirrorLabels).String(),
+	)
+	runner.mirrorEndpointsWatcher = mirrorEndpointsWatcher
+	runner.mirrorEndpointsWatcher.Init()
+
 	return runner
 }
 
 func (r *Runner) Run() error {
 	go r.serviceWatcher.Run()
+	go r.mirrorServiceWatcher.Run()
 	// wait for service watcher to sync before starting the endpoints to
 	// avoid race between them. TODO: atm dummy and could run forever if
 	// serviceis cache fails to sync
 	stopCh := make(chan struct{})
 	if ok := cache.WaitForNamedCacheSync("serviceWatcher", stopCh, r.serviceWatcher.HasSynced); !ok {
 		return fmt.Errorf("failed to wait for service caches to sync")
+	}
+	if ok := cache.WaitForNamedCacheSync("mirrorServiceWatcher", stopCh, r.mirrorServiceWatcher.HasSynced); !ok {
+		return fmt.Errorf("failed to wait for mirror service caches to sync")
 	}
 
 	// After services store syncs, perform a sync to delete stale mirrors
@@ -101,6 +131,7 @@ func (r *Runner) Run() error {
 		}
 	}
 	go r.endpointsWatcher.Run()
+	go r.mirrorEndpointsWatcher.Run()
 
 	go r.serviceQueue.Run()
 	go r.endpointsQueue.Run()
@@ -111,8 +142,10 @@ func (r *Runner) Run() error {
 func (r *Runner) Stop() {
 	r.serviceQueue.Stop()
 	r.serviceWatcher.Stop()
+	r.mirrorServiceWatcher.Stop()
 	r.endpointsQueue.Stop()
 	r.endpointsWatcher.Stop()
+	r.mirrorEndpointsWatcher.Stop()
 }
 
 func (r *Runner) reconcileService(name, namespace string) error {
@@ -194,15 +227,12 @@ func (r *Runner) ServiceSync() error {
 		)
 	}
 
-	options := metav1.ListOptions{
-		LabelSelector: labels.Set(MirrorLabels).String(),
-	}
-	currSvcs, err := r.client.CoreV1().Services(r.namespace).List(r.ctx, options)
+	currSvcs, err := r.mirrorServiceWatcher.List()
 	if err != nil {
 		return err
 	}
 
-	for _, svc := range currSvcs.Items {
+	for _, svc := range currSvcs {
 		if !isInList(svc.Name, mirrorSvcList) {
 			log.Logger.Info(
 				"Deleting old service and related endpoint",
