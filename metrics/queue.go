@@ -55,6 +55,13 @@ var (
 		},
 		[]string{"name"},
 	)
+	queueRequeued = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "semaphore_service_mirror_queue_requeued_items",
+			Help: "Items that have been requeued but not reconciled yet, by queue name",
+		},
+		[]string{"name"},
+	)
 )
 
 func init() {
@@ -66,8 +73,14 @@ func init() {
 		queueUnfinishedWork,
 		queueLongestRunningProcessor,
 		queueRetries,
+		queueRequeued,
 	)
 	workqueue.SetProvider(&workqueueProvider{})
+}
+
+// SetRequeued updates the number of requeued items
+func SetRequeued(name string, val float64) {
+	queueRequeued.With(prometheus.Labels{"name": name}).Set(val)
 }
 
 // workqueueProvider implements workqueue.MetricsProvider
