@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/utilitywarehouse/semaphore-service-mirror/log"
+	"github.com/utilitywarehouse/semaphore-service-mirror/metrics"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 )
@@ -15,6 +16,7 @@ type queue struct {
 	name          string
 	reconcileFunc queueReconcileFunc
 	queue         workqueue.RateLimitingInterface
+	requeued      []string
 }
 
 // newQueue returns a new queue
@@ -39,7 +41,9 @@ func (q *queue) Add(obj interface{}) {
 
 // Run processes items from the queue as they're added
 func (q *queue) Run() {
+	q.updateMetrics()
 	for q.processItem() {
+		q.updateMetrics()
 	}
 }
 
@@ -65,7 +69,7 @@ func (q *queue) processItem() bool {
 			"key", key.(string),
 			"err", err,
 		)
-		q.queue.Forget(key)
+		q.forget(key)
 		return true
 	}
 
@@ -83,7 +87,7 @@ func (q *queue) processItem() bool {
 			"name", name,
 			"err", err,
 		)
-		q.queue.AddRateLimited(key)
+		q.requeue(key)
 		log.Logger.Info(
 			"requeued item",
 			"queue", q.name,
@@ -97,8 +101,40 @@ func (q *queue) processItem() bool {
 			"namespace", namespace,
 			"name", name,
 		)
-		q.queue.Forget(key)
+		q.forget(key)
 	}
 
 	return true
+}
+
+func (q *queue) requeue(key interface{}) {
+	q.queue.AddRateLimited(key)
+	q.addRequeued(key.(string))
+}
+
+func (q *queue) forget(key interface{}) {
+	q.queue.Forget(key)
+	q.removeRequeued(key.(string))
+}
+
+func (q *queue) addRequeued(key string) {
+	for _, k := range q.requeued {
+		if k == key {
+			return
+		}
+	}
+	q.requeued = append(q.requeued, key)
+}
+
+func (q *queue) removeRequeued(key string) {
+	for i, k := range q.requeued {
+		if k == key {
+			q.requeued = append(q.requeued[:i], q.requeued[i+1:]...)
+			break
+		}
+	}
+}
+
+func (q *queue) updateMetrics() {
+	metrics.SetRequeued(q.name, float64(len(q.requeued)))
 }
