@@ -29,11 +29,12 @@ type ServiceWatcher struct {
 	eventHandler  ServiceEventHandler
 	labelSelector string
 	name          string
+	namespace     string
 	ListHealthy   bool
 	WatchHealthy  bool
 }
 
-func NewServiceWatcher(name string, client kubernetes.Interface, resyncPeriod time.Duration, handler ServiceEventHandler, labelSelector string) *ServiceWatcher {
+func NewServiceWatcher(name string, client kubernetes.Interface, resyncPeriod time.Duration, handler ServiceEventHandler, labelSelector, namespace string) *ServiceWatcher {
 	return &ServiceWatcher{
 		ctx:           context.Background(),
 		client:        client,
@@ -42,6 +43,7 @@ func NewServiceWatcher(name string, client kubernetes.Interface, resyncPeriod ti
 		eventHandler:  handler,
 		labelSelector: labelSelector,
 		name:          name,
+		namespace:     namespace,
 	}
 }
 
@@ -49,7 +51,7 @@ func (sw *ServiceWatcher) Init() {
 	listWatch := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			options.LabelSelector = sw.labelSelector
-			l, err := sw.client.CoreV1().Services(metav1.NamespaceAll).List(sw.ctx, options)
+			l, err := sw.client.CoreV1().Services(sw.namespace).List(sw.ctx, options)
 			if err != nil {
 				log.Logger.Error("service list error", "watcher", sw.name, "err", err)
 				sw.ListHealthy = false
@@ -60,7 +62,7 @@ func (sw *ServiceWatcher) Init() {
 		},
 		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 			options.LabelSelector = sw.labelSelector
-			w, err := sw.client.CoreV1().Services(metav1.NamespaceAll).Watch(sw.ctx, options)
+			w, err := sw.client.CoreV1().Services(sw.namespace).Watch(sw.ctx, options)
 			if err != nil {
 				log.Logger.Error("service watch error", "watcher", sw.name, "err", err)
 				sw.WatchHealthy = false
