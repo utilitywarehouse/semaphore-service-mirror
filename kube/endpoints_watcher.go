@@ -29,11 +29,12 @@ type EndpointsWatcher struct {
 	eventHandler  EndpointsEventHandler
 	labelSelector string
 	name          string
+	namespace     string
 	ListHealthy   bool
 	WatchHealthy  bool
 }
 
-func NewEndpointsWatcher(name string, client kubernetes.Interface, resyncPeriod time.Duration, handler EndpointsEventHandler, labelSelector string) *EndpointsWatcher {
+func NewEndpointsWatcher(name string, client kubernetes.Interface, resyncPeriod time.Duration, handler EndpointsEventHandler, labelSelector, namespace string) *EndpointsWatcher {
 	return &EndpointsWatcher{
 		ctx:           context.Background(),
 		client:        client,
@@ -42,6 +43,7 @@ func NewEndpointsWatcher(name string, client kubernetes.Interface, resyncPeriod 
 		eventHandler:  handler,
 		labelSelector: labelSelector,
 		name:          name,
+		namespace:     namespace,
 	}
 }
 
@@ -49,7 +51,7 @@ func (ew *EndpointsWatcher) Init() {
 	listWatch := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			options.LabelSelector = ew.labelSelector
-			l, err := ew.client.CoreV1().Endpoints(metav1.NamespaceAll).List(ew.ctx, options)
+			l, err := ew.client.CoreV1().Endpoints(ew.namespace).List(ew.ctx, options)
 			if err != nil {
 				log.Logger.Error("endpoints list error", "watcher", ew.name, "err", err)
 				ew.ListHealthy = false
@@ -60,7 +62,7 @@ func (ew *EndpointsWatcher) Init() {
 		},
 		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 			options.LabelSelector = ew.labelSelector
-			w, err := ew.client.CoreV1().Endpoints(metav1.NamespaceAll).Watch(ew.ctx, options)
+			w, err := ew.client.CoreV1().Endpoints(ew.namespace).Watch(ew.ctx, options)
 			if err != nil {
 				log.Logger.Error("endpoints watch error", "watcher", ew.name, "err", err)
 				ew.WatchHealthy = false

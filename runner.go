@@ -66,6 +66,7 @@ func NewRunner(client, watchClient kubernetes.Interface, namespace, prefix, labe
 		resyncPeriod,
 		runner.ServiceEventHandler,
 		labelselector,
+		metav1.NamespaceAll,
 	)
 	runner.serviceWatcher = serviceWatcher
 	runner.serviceWatcher.Init()
@@ -77,6 +78,7 @@ func NewRunner(client, watchClient kubernetes.Interface, namespace, prefix, labe
 		resyncPeriod,
 		nil,
 		labels.Set(MirrorLabels).String(),
+		namespace,
 	)
 	runner.mirrorServiceWatcher = mirrorServiceWatcher
 	runner.mirrorServiceWatcher.Init()
@@ -88,6 +90,7 @@ func NewRunner(client, watchClient kubernetes.Interface, namespace, prefix, labe
 		resyncPeriod,
 		runner.EndpointsEventHandler,
 		labelselector,
+		metav1.NamespaceAll,
 	)
 	runner.endpointsWatcher = endpointsWatcher
 	runner.endpointsWatcher.Init()
@@ -99,6 +102,7 @@ func NewRunner(client, watchClient kubernetes.Interface, namespace, prefix, labe
 		resyncPeriod,
 		nil,
 		labels.Set(MirrorLabels).String(),
+		namespace,
 	)
 	runner.mirrorEndpointsWatcher = mirrorEndpointsWatcher
 	runner.mirrorEndpointsWatcher.Init()
