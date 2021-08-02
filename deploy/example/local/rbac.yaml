@@ -9,6 +9,8 @@ rules:
   - endpoints
   verbs:
     - get
+    - list
+    - watch
     - create
     - update
     - delete
