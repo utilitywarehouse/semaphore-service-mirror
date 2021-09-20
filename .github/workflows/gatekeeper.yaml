@@ -1,0 +1,20 @@
+name: gatekeeper
+
+on:
+  push:
+    branches:
+      - "*"
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - "master"
+
+jobs:
+  opa-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: docker://openpolicyagent/opa
+        with:
+          args: "test --ignore=*.yaml --ignore=*.json -v gatekeeper"
