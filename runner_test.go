@@ -14,6 +14,11 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+var testMirrorLabels = map[string]string{
+	"mirrored-svc":           "true",
+	"mirror-svc-prefix-sync": "prefix",
+}
+
 // To make expected types
 type TestSvc struct {
 	Name      string
@@ -293,7 +298,7 @@ func TestServiceSync(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("prefix-remote-ns-%s-test-svc", Separator),
 			Namespace: "local-ns",
-			Labels:    MirrorLabels,
+			Labels:    testMirrorLabels,
 		},
 		Spec: v1.ServiceSpec{
 			Ports:    testPorts,
@@ -305,7 +310,7 @@ func TestServiceSync(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("prefix-old-svc-%s-remote-ns", Separator),
 			Namespace: "local-ns",
-			Labels:    MirrorLabels,
+			Labels:    testMirrorLabels,
 		},
 		Spec: v1.ServiceSpec{
 			Ports:    testPorts,

@@ -17,10 +17,6 @@ import (
 	"github.com/utilitywarehouse/semaphore-service-mirror/log"
 )
 
-var (
-	MirrorLabels = map[string]string{"mirrored-svc": "true"}
-)
-
 const (
 	// Separator is inserted between the namespace and name in the mirror
 	// name to prevent clashes
@@ -42,6 +38,7 @@ type Runner struct {
 	endpointsQueue         *queue
 	endpointsWatcher       *kube.EndpointsWatcher
 	mirrorEndpointsWatcher *kube.EndpointsWatcher
+	mirrorLabels           map[string]string
 	namespace              string
 	prefix                 string
 	labelselector          string
@@ -49,12 +46,17 @@ type Runner struct {
 }
 
 func NewRunner(client, watchClient kubernetes.Interface, namespace, prefix, labelselector string, resyncPeriod time.Duration, sync bool) *Runner {
+	mirrorLabels := map[string]string{
+		"mirrored-svc":           "true",
+		"mirror-svc-prefix-sync": prefix,
+	}
 	runner := &Runner{
-		ctx:       context.Background(),
-		client:    client,
-		namespace: namespace,
-		prefix:    prefix,
-		sync:      sync,
+		ctx:          context.Background(),
+		client:       client,
+		namespace:    namespace,
+		prefix:       prefix,
+		sync:         sync,
+		mirrorLabels: mirrorLabels,
 	}
 	runner.serviceQueue = newQueue("service", runner.reconcileService)
 	runner.endpointsQueue = newQueue("endpoints", runner.reconcileEndpoints)
@@ -77,7 +79,7 @@ func NewRunner(client, watchClient kubernetes.Interface, namespace, prefix, labe
 		client,
 		resyncPeriod,
 		nil,
-		labels.Set(MirrorLabels).String(),
+		labels.Set(mirrorLabels).String(),
 		namespace,
 	)
 	runner.mirrorServiceWatcher = mirrorServiceWatcher
@@ -101,7 +103,7 @@ func NewRunner(client, watchClient kubernetes.Interface, namespace, prefix, labe
 		client,
 		resyncPeriod,
 		nil,
-		labels.Set(MirrorLabels).String(),
+		labels.Set(mirrorLabels).String(),
 		namespace,
 	)
 	runner.mirrorEndpointsWatcher = mirrorEndpointsWatcher
@@ -174,7 +176,7 @@ func (r *Runner) reconcileService(name, namespace string) error {
 	mirrorSvc, err := r.getService(mirrorName, r.namespace)
 	if errors.IsNotFound(err) {
 		log.Logger.Info("local service not found, creating service", "namespace", r.namespace, "name", mirrorName)
-		if _, err := r.createService(mirrorName, r.namespace, MirrorLabels, remoteSvc.Spec.Ports, isHeadless(remoteSvc)); err != nil {
+		if _, err := r.createService(mirrorName, r.namespace, r.mirrorLabels, remoteSvc.Spec.Ports, isHeadless(remoteSvc)); err != nil {
 			return fmt.Errorf("creating service %s/%s: %v", r.namespace, mirrorName, err)
 		}
 	} else if err != nil {
@@ -343,7 +345,7 @@ func (r *Runner) reconcileEndpoints(name, namespace string) error {
 	_, err = r.getEndpoints(mirrorName, r.namespace)
 	if errors.IsNotFound(err) {
 		log.Logger.Info("local endpoints not found, creating endpoints", "namespace", r.namespace, "name", mirrorName)
-		if _, err := r.createEndpoints(mirrorName, r.namespace, MirrorLabels, remoteEndpoints.Subsets); err != nil {
+		if _, err := r.createEndpoints(mirrorName, r.namespace, r.mirrorLabels, remoteEndpoints.Subsets); err != nil {
 			return fmt.Errorf("creating endpoints %s/%s: %v", r.namespace, mirrorName, err)
 
 		}
@@ -351,7 +353,7 @@ func (r *Runner) reconcileEndpoints(name, namespace string) error {
 		return fmt.Errorf("getting endpoints %s/%s: %v", r.namespace, mirrorName, err)
 	} else {
 		log.Logger.Info("local endpoints found, updating endpoints", "namespace", r.namespace, "name", mirrorName)
-		if _, err := r.updateEndpoints(mirrorName, r.namespace, MirrorLabels, remoteEndpoints.Subsets); err != nil {
+		if _, err := r.updateEndpoints(mirrorName, r.namespace, r.mirrorLabels, remoteEndpoints.Subsets); err != nil {
 			return fmt.Errorf("updating endpoints %s/%s: %v", r.namespace, mirrorName, err)
 		}
 	}
