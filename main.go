@@ -97,8 +97,11 @@ func main() {
 func listenAndServe(runners []*Runner) {
 	sm := http.NewServeMux()
 	sm.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+		// A meaningful health check would be to verify that all runners
+		// have started or kick the app otherwise via a liveness probe.
+		// Client errors should be monitored via metrics.
 		for _, r := range runners {
-			if !r.Healthy() {
+			if !r.initialised {
 				w.WriteHeader(http.StatusServiceUnavailable)
 				return
 			}

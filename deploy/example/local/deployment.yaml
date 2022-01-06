@@ -30,12 +30,15 @@ spec:
           ports:
             - name: readiness-port
               containerPort: 8080
-          readinessProbe:
+          livenessProbe:
             httpGet:
               path: /healthz
               port: readiness-port
             periodSeconds: 10
-            failureThreshold: 1
+            failureThreshold: 6
+            initialDelaySeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 1
       volumes:
         - name: token
           secret:

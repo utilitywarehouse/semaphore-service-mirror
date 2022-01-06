@@ -30,8 +30,6 @@ type ServiceWatcher struct {
 	labelSelector string
 	name          string
 	namespace     string
-	ListHealthy   bool
-	WatchHealthy  bool
 }
 
 func NewServiceWatcher(name string, client kubernetes.Interface, resyncPeriod time.Duration, handler ServiceEventHandler, labelSelector, namespace string) *ServiceWatcher {
@@ -54,9 +52,6 @@ func (sw *ServiceWatcher) Init() {
 			l, err := sw.client.CoreV1().Services(sw.namespace).List(sw.ctx, options)
 			if err != nil {
 				log.Logger.Error("service list error", "watcher", sw.name, "err", err)
-				sw.ListHealthy = false
-			} else {
-				sw.ListHealthy = true
 			}
 			return l, err
 		},
@@ -65,9 +60,6 @@ func (sw *ServiceWatcher) Init() {
 			w, err := sw.client.CoreV1().Services(sw.namespace).Watch(sw.ctx, options)
 			if err != nil {
 				log.Logger.Error("service watch error", "watcher", sw.name, "err", err)
-				sw.WatchHealthy = false
-			} else {
-				sw.WatchHealthy = true
 			}
 			return w, err
 		},
@@ -135,11 +127,4 @@ func (sw *ServiceWatcher) List() ([]*v1.Service, error) {
 		svcs = append(svcs, svc)
 	}
 	return svcs, nil
-}
-
-func (sw *ServiceWatcher) Healthy() bool {
-	if sw.ListHealthy && sw.WatchHealthy {
-		return true
-	}
-	return false
 }

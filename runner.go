@@ -44,6 +44,7 @@ type Runner struct {
 	prefix                 string
 	labelselector          string
 	sync                   bool
+	initialised            bool // Flag to turn on after the successful initialisation of the runner.
 }
 
 func NewRunner(client, watchClient kubernetes.Interface, name, namespace, prefix, labelselector string, resyncPeriod time.Duration, sync bool) *Runner {
@@ -59,6 +60,7 @@ func NewRunner(client, watchClient kubernetes.Interface, name, namespace, prefix
 		prefix:       prefix,
 		sync:         sync,
 		mirrorLabels: mirrorLabels,
+		initialised:  false,
 	}
 	runner.serviceQueue = newQueue("service", runner.reconcileService)
 	runner.endpointsQueue = newQueue("endpoints", runner.reconcileEndpoints)
@@ -117,9 +119,11 @@ func NewRunner(client, watchClient kubernetes.Interface, name, namespace, prefix
 func (r *Runner) Run() error {
 	go r.serviceWatcher.Run()
 	go r.mirrorServiceWatcher.Run()
+	// At this point the runner should be considered initialised and live.
+	r.initialised = true
 	// wait for service watcher to sync before starting the endpoints to
 	// avoid race between them. TODO: atm dummy and could run forever if
-	// serviceis cache fails to sync
+	// services cache fails to sync
 	stopCh := make(chan struct{})
 	if ok := cache.WaitForNamedCacheSync("serviceWatcher", stopCh, r.serviceWatcher.HasSynced); !ok {
 		return fmt.Errorf("failed to wait for service caches to sync")
@@ -427,11 +431,4 @@ func (r *Runner) EndpointsEventHandler(eventType watch.EventType, old *v1.Endpoi
 	default:
 		log.Logger.Info("Unknown endpoints event received: %v", eventType, "runner", r.name)
 	}
-}
-
-func (r *Runner) Healthy() bool {
-	if r.serviceWatcher.Healthy() && r.endpointsWatcher.Healthy() {
-		return true
-	}
-	return false
 }
