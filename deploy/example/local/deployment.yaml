@@ -19,21 +19,14 @@ spec:
         - name: semaphore-service-mirror
           image: semaphore-service-mirror
           env:
-            - name: SSM_REMOTE_SERVICE_ACCOUNT_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: remote-kube-token
-                  key: token
-            - name: SSM_REMOTE_API_URL
-              value: "https://lb.master.k8s.exp-1.gcp.uw.systems"
-            - name: SSM_REMOTE_CA_URL
-              value: "https://kube-ca-cert.exp-1.gcp.uw.systems"
-            - name: SSM_LABEL_SELECTOR
-              value: "uw.systems/mirror=true"
-            - name: SSM_MIRROR_NS
-              value: "sys-service-mirror"
-            - name: SSM_SVC_PREFIX
-              value: "remote-cluster"
+            - name: SSM_CONFIG
+              value: "/etc/semaphore-service-mirror/config.json"
+          volumeMounts:
+            - name: token
+              mountPath: /etc/semaphore-service-mirror/tokens/c1
+              readOnly: true
+            - name: config
+              mountPath: /etc/semaphore-service-mirror/
           ports:
             - name: readiness-port
               containerPort: 8080
@@ -43,3 +36,10 @@ spec:
               port: readiness-port
             periodSeconds: 10
             failureThreshold: 1
+      volumes:
+        - name: token
+          secret:
+            secretName: service-mirror-token
+        - name: config
+          configMap:
+            name: semaphore-service-mirror-config

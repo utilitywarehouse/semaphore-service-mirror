@@ -3,6 +3,10 @@ kind: Kustomization
 resources:
   - deployment.yaml
   - rbac.yaml
+configMapGenerator:
+  - name: semaphore-service-mirror-config
+    files:
+     - config.json=resources/semaphore-service-mirror-config.json
 secretGenerator:
   - name: remote-kube-token
     type: Opaque
