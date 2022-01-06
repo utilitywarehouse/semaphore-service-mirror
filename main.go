@@ -123,7 +123,7 @@ func makeRunner(homeClient kubernetes.Interface, remote *remoteClusterConfig, gl
 	saToken := string(data)
 	if saToken != "" {
 		saToken = strings.TrimSpace(saToken)
-		if !bearerRe.Match([]byte(saToken)) {
+		if !bearerRe.MatchString(saToken) {
 			return nil, fmt.Errorf("The provided token does not match regex: %s", bearerRe.String())
 		}
 	}
