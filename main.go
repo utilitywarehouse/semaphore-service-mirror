@@ -136,6 +136,7 @@ func makeRunner(homeClient kubernetes.Interface, remote *remoteClusterConfig, gl
 	return NewRunner(
 		homeClient,
 		remoteClient,
+		remote.Name,
 		global.MirrorNamespace,
 		remote.ServicePrefix,
 		global.LabelSelector,

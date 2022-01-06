@@ -39,13 +39,14 @@ type Runner struct {
 	endpointsWatcher       *kube.EndpointsWatcher
 	mirrorEndpointsWatcher *kube.EndpointsWatcher
 	mirrorLabels           map[string]string
+	name                   string
 	namespace              string
 	prefix                 string
 	labelselector          string
 	sync                   bool
 }
 
-func NewRunner(client, watchClient kubernetes.Interface, namespace, prefix, labelselector string, resyncPeriod time.Duration, sync bool) *Runner {
+func NewRunner(client, watchClient kubernetes.Interface, name, namespace, prefix, labelselector string, resyncPeriod time.Duration, sync bool) *Runner {
 	mirrorLabels := map[string]string{
 		"mirrored-svc":           "true",
 		"mirror-svc-prefix-sync": prefix,
@@ -53,6 +54,7 @@ func NewRunner(client, watchClient kubernetes.Interface, namespace, prefix, labe
 	runner := &Runner{
 		ctx:          context.Background(),
 		client:       client,
+		name:         name,
 		namespace:    namespace,
 		prefix:       prefix,
 		sync:         sync,
@@ -128,11 +130,12 @@ func (r *Runner) Run() error {
 
 	// After services store syncs, perform a sync to delete stale mirrors
 	if r.sync {
-		log.Logger.Info("Syncing services")
+		log.Logger.Info("Syncing services", "runner", r.name)
 		if err := r.ServiceSync(); err != nil {
 			log.Logger.Warn(
 				"Error syncing services, skipping..",
 				"err", err,
+				"runner", r.name,
 			)
 		}
 	}
@@ -158,12 +161,12 @@ func (r *Runner) reconcileService(name, namespace string) error {
 	mirrorName := generateMirrorName(r.prefix, namespace, name)
 
 	// Get the remote service
-	log.Logger.Info("getting remote service", "namespace", namespace, "name", name)
+	log.Logger.Info("getting remote service", "namespace", namespace, "name", name, "runner", r.name)
 	remoteSvc, err := r.getRemoteService(name, namespace)
 	if errors.IsNotFound(err) {
 		// If the remote service doesn't exist, clean up the local mirror service (if it
 		// exists)
-		log.Logger.Info("remote service not found, deleting local service", "namespace", r.namespace, "name", mirrorName)
+		log.Logger.Info("remote service not found, deleting local service", "namespace", r.namespace, "name", mirrorName, "runner", r.name)
 		if err := r.deleteService(mirrorName, r.namespace); err != nil && !errors.IsNotFound(err) {
 			return fmt.Errorf("deleting service %s/%s: %v", r.namespace, mirrorName, err)
 		}
@@ -175,14 +178,14 @@ func (r *Runner) reconcileService(name, namespace string) error {
 	// If the mirror service doesn't exist, create it. Otherwise, update it.
 	mirrorSvc, err := r.getService(mirrorName, r.namespace)
 	if errors.IsNotFound(err) {
-		log.Logger.Info("local service not found, creating service", "namespace", r.namespace, "name", mirrorName)
+		log.Logger.Info("local service not found, creating service", "namespace", r.namespace, "name", mirrorName, "runner", r.name)
 		if _, err := r.createService(mirrorName, r.namespace, r.mirrorLabels, remoteSvc.Spec.Ports, isHeadless(remoteSvc)); err != nil {
 			return fmt.Errorf("creating service %s/%s: %v", r.namespace, mirrorName, err)
 		}
 	} else if err != nil {
 		return fmt.Errorf("getting service %s/%s: %v", r.namespace, mirrorName, err)
 	} else {
-		log.Logger.Info("local service found, updating service", "namespace", r.namespace, "name", mirrorName)
+		log.Logger.Info("local service found, updating service", "namespace", r.namespace, "name", mirrorName, "runner", r.name)
 		if _, err := r.updateService(mirrorSvc, remoteSvc.Spec.Ports); err != nil {
 			return fmt.Errorf("updating service %s/%s: %v", r.namespace, mirrorName, err)
 		}
@@ -243,6 +246,7 @@ func (r *Runner) ServiceSync() error {
 			log.Logger.Info(
 				"Deleting old service and related endpoint",
 				"service", svc.Name,
+				"runner", r.name,
 			)
 			// Deleting a service should also clear the related
 			// endpoints
@@ -251,6 +255,7 @@ func (r *Runner) ServiceSync() error {
 					"Error clearing service",
 					"service", svc.Name,
 					"err", err,
+					"runner", r.name,
 				)
 				return err
 			}
@@ -307,19 +312,16 @@ func (r *Runner) deleteService(name, namespace string) error {
 func (r *Runner) ServiceEventHandler(eventType watch.EventType, old *v1.Service, new *v1.Service) {
 	switch eventType {
 	case watch.Added:
-		log.Logger.Debug("service added", "namespace", new.Namespace, "name", new.Name)
+		log.Logger.Debug("service added", "namespace", new.Namespace, "name", new.Name, "runner", r.name)
 		r.serviceQueue.Add(new)
 	case watch.Modified:
-		log.Logger.Debug("service modified", "namespace", new.Namespace, "name", new.Name)
+		log.Logger.Debug("service modified", "namespace", new.Namespace, "name", new.Name, "runner", r.name)
 		r.serviceQueue.Add(new)
 	case watch.Deleted:
-		log.Logger.Debug("service deleted", "namespace", old.Namespace, "name", old.Name)
+		log.Logger.Debug("service deleted", "namespace", old.Namespace, "name", old.Name, "runner", r.name)
 		r.serviceQueue.Add(old)
 	default:
-		log.Logger.Info(
-			"Unknown service event received: %v",
-			eventType,
-		)
+		log.Logger.Info("Unknown service event received: %v", eventType, "runner", r.name)
 	}
 }
 
@@ -327,10 +329,10 @@ func (r *Runner) reconcileEndpoints(name, namespace string) error {
 	mirrorName := generateMirrorName(r.prefix, namespace, name)
 
 	// Get the remote endpoints
-	log.Logger.Info("getting remote endpoints", "namespace", namespace, "name", name)
+	log.Logger.Info("getting remote endpoints", "namespace", namespace, "name", name, "runner", r.name)
 	remoteEndpoints, err := r.getRemoteEndpoints(name, namespace)
 	if errors.IsNotFound(err) {
-		log.Logger.Info("remote endpoints not found, removing local endpoints", "namespace", namespace, "name", name)
+		log.Logger.Info("remote endpoints not found, removing local endpoints", "namespace", namespace, "name", name, "runner", r.name)
 		if err := r.deleteEndpoints(mirrorName, r.namespace); err != nil && !errors.IsNotFound(err) {
 			return fmt.Errorf("deleting endpoints %s/%s: %v", r.namespace, mirrorName, err)
 		}
@@ -341,10 +343,10 @@ func (r *Runner) reconcileEndpoints(name, namespace string) error {
 	}
 
 	// If the mirror endpoints doesn't exist, create it. Otherwise, update it.
-	log.Logger.Info("getting local endpoints", "namespace", r.namespace, "name", mirrorName)
+	log.Logger.Info("getting local endpoints", "namespace", r.namespace, "name", mirrorName, "runner", r.name)
 	_, err = r.getEndpoints(mirrorName, r.namespace)
 	if errors.IsNotFound(err) {
-		log.Logger.Info("local endpoints not found, creating endpoints", "namespace", r.namespace, "name", mirrorName)
+		log.Logger.Info("local endpoints not found, creating endpoints", "namespace", r.namespace, "name", mirrorName, "runner", r.name)
 		if _, err := r.createEndpoints(mirrorName, r.namespace, r.mirrorLabels, remoteEndpoints.Subsets); err != nil {
 			return fmt.Errorf("creating endpoints %s/%s: %v", r.namespace, mirrorName, err)
 
@@ -352,7 +354,7 @@ func (r *Runner) reconcileEndpoints(name, namespace string) error {
 	} else if err != nil {
 		return fmt.Errorf("getting endpoints %s/%s: %v", r.namespace, mirrorName, err)
 	} else {
-		log.Logger.Info("local endpoints found, updating endpoints", "namespace", r.namespace, "name", mirrorName)
+		log.Logger.Info("local endpoints found, updating endpoints", "namespace", r.namespace, "name", mirrorName, "runner", r.name)
 		if _, err := r.updateEndpoints(mirrorName, r.namespace, r.mirrorLabels, remoteEndpoints.Subsets); err != nil {
 			return fmt.Errorf("updating endpoints %s/%s: %v", r.namespace, mirrorName, err)
 		}
@@ -414,19 +416,16 @@ func (r *Runner) deleteEndpoints(name, namespace string) error {
 func (r *Runner) EndpointsEventHandler(eventType watch.EventType, old *v1.Endpoints, new *v1.Endpoints) {
 	switch eventType {
 	case watch.Added:
-		log.Logger.Debug("endpoints added", "namespace", new.Namespace, "name", new.Name)
+		log.Logger.Debug("endpoints added", "namespace", new.Namespace, "name", new.Name, "runner", r.name)
 		r.endpointsQueue.Add(new)
 	case watch.Modified:
-		log.Logger.Debug("endpoints modified", "namespace", new.Namespace, "name", new.Name)
+		log.Logger.Debug("endpoints modified", "namespace", new.Namespace, "name", new.Name, "runner", r.name)
 		r.endpointsQueue.Add(new)
 	case watch.Deleted:
-		log.Logger.Debug("endpoints deleted", "namespace", old.Namespace, "name", old.Name)
+		log.Logger.Debug("endpoints deleted", "namespace", old.Namespace, "name", old.Name, "runner", r.name)
 		r.endpointsQueue.Add(old)
 	default:
-		log.Logger.Info(
-			"Unknown endpoints event received: %v",
-			eventType,
-		)
+		log.Logger.Info("Unknown endpoints event received: %v", eventType, "runner", r.name)
 	}
 }
 

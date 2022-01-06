@@ -75,6 +75,7 @@ func TestAddService(t *testing.T) {
 	testRunner := NewRunner(
 		fakeClient,
 		fakeWatchClient,
+		"test-runner",
 		"local-ns",
 		"prefix",
 		"uw.systems/test=true",
@@ -126,6 +127,7 @@ func TestAddHeadlessService(t *testing.T) {
 	testRunner := NewRunner(
 		fakeClient,
 		fakeWatchClient,
+		"test-runner",
 		"local-ns",
 		"prefix",
 		"uw.systems/test=true",
@@ -189,6 +191,7 @@ func TestModifyService(t *testing.T) {
 	testRunner := NewRunner(
 		fakeClient,
 		fakeWatchClient,
+		"test-runner",
 		"local-ns",
 		"prefix",
 		"uw.systems/test=true",
@@ -249,6 +252,7 @@ func TestModifyServiceNoChange(t *testing.T) {
 	testRunner := NewRunner(
 		fakeClient,
 		fakeWatchClient,
+		"test-runner",
 		"local-ns",
 		"prefix",
 		"uw.systems/test=true",
@@ -326,6 +330,7 @@ func TestServiceSync(t *testing.T) {
 	testRunner := NewRunner(
 		fakeClient,
 		fakeWatchClient,
+		"test-runner",
 		"local-ns",
 		"prefix",
 		"uw.systems/test=true",
