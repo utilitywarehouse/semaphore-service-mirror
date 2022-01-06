@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/utilitywarehouse/semaphore-service-mirror/kube"
@@ -115,18 +116,22 @@ func listenAndServe(runners []*Runner) {
 }
 
 func makeRunner(homeClient kubernetes.Interface, remote *remoteClusterConfig, global globalConfig) (*Runner, error) {
-	saToken, err := os.ReadFile(remote.RemoteSATokenPath)
+	data, err := os.ReadFile(remote.RemoteSATokenPath)
 	if err != nil {
 		return nil, fmt.Errorf("Cannot read file: %s: %v", remote.RemoteSATokenPath, err)
 	}
-	if !bearerRe.Match(saToken) {
-		return nil, fmt.Errorf("The provided token does not match regex: %s", bearerRe.String())
+	saToken := string(data)
+	if saToken != "" {
+		saToken = strings.TrimSpace(saToken)
+		if !bearerRe.Match([]byte(saToken)) {
+			return nil, fmt.Errorf("The provided token does not match regex: %s", bearerRe.String())
+		}
 	}
 	var remoteClient *kubernetes.Clientset
 	if remote.KubeConfigPath != "" {
 		remoteClient, err = kube.ClientFromConfig(remote.KubeConfigPath)
 	} else {
-		remoteClient, err = kube.Client(string(saToken), remote.RemoteAPIURL, remote.RemoteCAURL)
+		remoteClient, err = kube.Client(saToken, remote.RemoteAPIURL, remote.RemoteCAURL)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("cannot create kube client for remotecluster %v", err)
