@@ -5,6 +5,6 @@ ENV CGO_ENABLED 0
 RUN go test ./...
 RUN go build -o /semaphore-service-mirror .
 
-FROM alpine:3.14
+FROM alpine:3.15
 COPY --from=build /semaphore-service-mirror /semaphore-service-mirror
 CMD [ "/semaphore-service-mirror" ]
