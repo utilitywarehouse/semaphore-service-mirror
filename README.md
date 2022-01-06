@@ -7,45 +7,94 @@ able to route virtual services for remote pods.
 
 ## Usage
 ```
-Usage of semaphore-service-mirror:
+Usage of ./semaphore-service-mirror:
+  -config string
+        (required)Path to the json config file
   -kube-config string
         Path of a kube config file, if not provided the app will try to get in cluster config
   -label-selector string
-        (required) Label of services and endpoints to watch and mirror
+        Label of services and endpoints to watch and mirror
   -log-level string
         Log level (default "info")
   -mirror-ns string
         The namespace to create dummy mirror services in
-  -remote-api-url string
-        Remote Kubernetes API server URL
-  -remote-ca-url string
-        Remote Kubernetes CA certificate URL
-  -remote-sa-token-path string
-        Remote Kubernetes cluster token path
-  -resync-period duration
-        Namespace watcher cache resync period (default 1h0m0s)
-  -svc-prefix string
-        (required) A prefix to apply on all mirrored services names. Will also be used for initial service sync
-  -svc-sync
-        Sync services on startup (default true)
-  -target-kube-config string
-        Path of the target cluster kube config file to mirror services from
 ```
 
-* `-svc-prefix` flag is non optional and has 2 different uses:
-  - It is used as a prefix for your mirrored services, so that you can mirror
-    the same ns/service from different clusters.
-  - It is used to label your mirrored services as:
-    `mirror-svc-prefix-sync: <value>`, so that the app can filter out which
-    services to delete on the initial sync on startup.
-
 You can set most flags via envvars instead, format: "SSM_FLAG_NAME". Example:
-`-remote-ca-url` can be set as `SSM_REMOTE_CA_URL`.
+`-config` can be set as `SSM_CONFIG` and `-kube-config` can be set as 
+`SSM_KUBE_CONFIG`.
 
 If both are present, flags take precedence over envvars.
 
-Only exception is `-remote-sa-token-path` flag and
-`SSM_REMOTE_SERVICE_ACCOUNT_TOKEN` envvar.
+The only mandatory flag is `-config` to point to a json formatted config file.
+Label selector and mirror namespace must also be set, but there is the option to
+do this via the json config (more details in the next section below). Flags will
+take precedence over static configuration from the file.
+
+## Configuration file
+
+The operator expects a configuration file in json format. Here is a description
+of the configuration keys by scope:
+
+### Global
+Contains configuration globally shared by all runners.
+
+* `labelSelector`: Label used to select services to mirror
+* `mirrorNamespace`: Namespace used to locate/place mirrored objects
+* `serviceSync`: Whether to sync services on startup and delete records that
+  cannot be located based on the label selector. Defaults to false
+
+### Local Cluster
+Contains configuration needed to manage resources in the local cluster, where
+this operator runs.
+
+* `kubeConfigPath`: Path to a kube config file to access the local cluster. If
+  not specified the operator will try to use in-cluster configuration with the
+  pod's service account.
+
+### Remote clusters
+Contains a list of keys to configure access to all remote cluster. Each list can
+include the following:
+
+* `name`: A name for the remote cluster
+* `kubeConfigPath`: Path to a kube config file to access the remote cluster.
+* `remoteAPIURL`: Address of the remote cluster API server
+* `remoteCAURL`: Address from where to fetch the public CA certificate to talk
+  to the remote API server.
+* `remoteSATokenPiath`: Path to a service account token that will be used to
+  access remote cluster resources.
+* `resyncPeriod`: Will trigger an `onUpdate` event for everything that is stored
+   in the respective watchers cache. Defaults to 0 which equals disabled. 
+* `servicePrefix`: How to prefix service names mirrored from that remote 
+  locally.
+
+Either `kubeConfigPath` or `remoteAPIURL`,`remoteCAURL` and `remoteSATokenPiath`
+should be set to be able to successfully create a client to talk to the remote
+cluster.
+
+### Example
+```
+{
+  "global": {
+    "labelSelector": "mirror.semaphore.uw.io=true",
+    "mirrorNamespace": "semaphore",
+    "serviceSync": true
+  },
+  "localCluster": {
+    "kubeConfigPath": "/path/to/local/kubeconfig"
+  },
+  "remoteClusters": [
+    {
+      "name": "clusterA",
+      "remoteCAURL": "remote_ca_url",
+      "remoteAPIURL": "remote_api_url",
+      "remoteSATokenPath": "/path/to/token",
+      "resyncPeriod": "10s",
+      "servicePrefix": "cluster-A"
+    }
+  ]
+}
+```
 
 ## Generating mirrored service names
 

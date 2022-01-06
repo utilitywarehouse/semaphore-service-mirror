@@ -30,8 +30,6 @@ type EndpointsWatcher struct {
 	labelSelector string
 	name          string
 	namespace     string
-	ListHealthy   bool
-	WatchHealthy  bool
 }
 
 func NewEndpointsWatcher(name string, client kubernetes.Interface, resyncPeriod time.Duration, handler EndpointsEventHandler, labelSelector, namespace string) *EndpointsWatcher {
@@ -54,9 +52,6 @@ func (ew *EndpointsWatcher) Init() {
 			l, err := ew.client.CoreV1().Endpoints(ew.namespace).List(ew.ctx, options)
 			if err != nil {
 				log.Logger.Error("endpoints list error", "watcher", ew.name, "err", err)
-				ew.ListHealthy = false
-			} else {
-				ew.ListHealthy = true
 			}
 			return l, err
 		},
@@ -65,9 +60,6 @@ func (ew *EndpointsWatcher) Init() {
 			w, err := ew.client.CoreV1().Endpoints(ew.namespace).Watch(ew.ctx, options)
 			if err != nil {
 				log.Logger.Error("endpoints watch error", "watcher", ew.name, "err", err)
-				ew.WatchHealthy = false
-			} else {
-				ew.WatchHealthy = true
 			}
 			return w, err
 		},
@@ -131,11 +123,4 @@ func (ew *EndpointsWatcher) List() ([]*v1.Endpoints, error) {
 		endpoints = append(endpoints, e)
 	}
 	return endpoints, nil
-}
-
-func (ew *EndpointsWatcher) Healthy() bool {
-	if ew.ListHealthy && ew.WatchHealthy {
-		return true
-	}
-	return false
 }
