@@ -62,12 +62,12 @@ func NewRunner(client, watchClient kubernetes.Interface, name, namespace, prefix
 		mirrorLabels: mirrorLabels,
 		initialised:  false,
 	}
-	runner.serviceQueue = newQueue("service", runner.reconcileService)
-	runner.endpointsQueue = newQueue("endpoints", runner.reconcileEndpoints)
+	runner.serviceQueue = newQueue(fmt.Sprintf("%s-service", name), runner.reconcileService)
+	runner.endpointsQueue = newQueue(fmt.Sprintf("%s-endpoints", name), runner.reconcileEndpoints)
 
 	// Create and initialize a service watcher
 	serviceWatcher := kube.NewServiceWatcher(
-		"serviceWatcher",
+		fmt.Sprintf("%s-serviceWatcher", name),
 		watchClient,
 		resyncPeriod,
 		runner.ServiceEventHandler,
@@ -79,7 +79,7 @@ func NewRunner(client, watchClient kubernetes.Interface, name, namespace, prefix
 
 	// Create and initialize a service watcher for mirrored services
 	mirrorServiceWatcher := kube.NewServiceWatcher(
-		"mirrorServiceWatcher",
+		fmt.Sprintf("%s-mirrorServiceWatcher", name),
 		client,
 		resyncPeriod,
 		nil,
@@ -91,7 +91,7 @@ func NewRunner(client, watchClient kubernetes.Interface, name, namespace, prefix
 
 	// Create and initialize an endpoints watcher
 	endpointsWatcher := kube.NewEndpointsWatcher(
-		"endpointsWatcher",
+		fmt.Sprintf("%s-endpointsWatcher", name),
 		watchClient,
 		resyncPeriod,
 		runner.EndpointsEventHandler,
@@ -103,7 +103,7 @@ func NewRunner(client, watchClient kubernetes.Interface, name, namespace, prefix
 
 	// Create and initialize an endpoints watcher for mirrored endpoints
 	mirrorEndpointsWatcher := kube.NewEndpointsWatcher(
-		"mirrorEndpointsWatcher",
+		fmt.Sprintf("%s-mirrorEndpointsWatcher", name),
 		client,
 		resyncPeriod,
 		nil,
