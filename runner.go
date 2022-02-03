@@ -6,6 +6,7 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -18,23 +19,26 @@ import (
 )
 
 type Runner struct {
-	ctx                    context.Context
-	client                 kubernetes.Interface
-	serviceQueue           *queue
-	serviceWatcher         *kube.ServiceWatcher
-	mirrorServiceWatcher   *kube.ServiceWatcher
-	endpointsQueue         *queue
-	endpointsWatcher       *kube.EndpointsWatcher
-	mirrorEndpointsWatcher *kube.EndpointsWatcher
-	mirrorLabels           map[string]string
-	globalServiceStore     *GlobalServiceStore
-	globalServiceQueue     *queue
-	name                   string
-	namespace              string
-	prefix                 string
-	labelselector          string
-	sync                   bool
-	initialised            bool // Flag to turn on after the successful initialisation of the runner.
+	ctx                        context.Context
+	client                     kubernetes.Interface
+	serviceQueue               *queue
+	serviceWatcher             *kube.ServiceWatcher
+	mirrorServiceWatcher       *kube.ServiceWatcher
+	endpointsQueue             *queue
+	endpointsWatcher           *kube.EndpointsWatcher
+	endpointSliceQueue         *queue
+	endpointSliceWatcher       *kube.EndpointSliceWatcher
+	mirrorEndpointsWatcher     *kube.EndpointsWatcher
+	mirrorEndpointSliceWatcher *kube.EndpointSliceWatcher
+	mirrorLabels               map[string]string
+	globalServiceStore         *GlobalServiceStore
+	globalServiceQueue         *queue
+	name                       string
+	namespace                  string
+	prefix                     string
+	labelselector              string
+	sync                       bool
+	initialised                bool // Flag to turn on after the successful initialisation of the runner.
 }
 
 func NewRunner(client, watchClient kubernetes.Interface, name, namespace, prefix, labelselector string, resyncPeriod time.Duration, sync bool, gst *GlobalServiceStore) *Runner {
@@ -54,8 +58,9 @@ func NewRunner(client, watchClient kubernetes.Interface, name, namespace, prefix
 		initialised:        false,
 	}
 	runner.serviceQueue = newQueue(fmt.Sprintf("%s-service", name), runner.reconcileService)
+	runner.globalServiceQueue = newQueue(fmt.Sprintf("%s-gl-service", name), runner.reconcileGlobalService)
 	runner.endpointsQueue = newQueue(fmt.Sprintf("%s-endpoints", name), runner.reconcileEndpoints)
-	runner.globalServiceQueue = newQueue(fmt.Sprintf("gl-service-%s", name), runner.reconcileGlobalService)
+	runner.endpointSliceQueue = newQueue(fmt.Sprintf("%s-endpointslice", name), runner.reconcileEndpointSlice)
 
 	// Create and initialize a service watcher
 	serviceWatcher := kube.NewServiceWatcher(
@@ -104,6 +109,30 @@ func NewRunner(client, watchClient kubernetes.Interface, name, namespace, prefix
 	)
 	runner.mirrorEndpointsWatcher = mirrorEndpointsWatcher
 	runner.mirrorEndpointsWatcher.Init()
+
+	// Create and initialize an endpointslice watcher
+	endpointSliceWatcher := kube.NewEndpointSliceWatcher(
+		fmt.Sprintf("%s-endpointSliceWatcher", name),
+		watchClient,
+		resyncPeriod,
+		runner.EndpointSliceEventHandler,
+		labelselector,
+		metav1.NamespaceAll,
+	)
+	runner.endpointSliceWatcher = endpointSliceWatcher
+	runner.endpointSliceWatcher.Init()
+
+	// Create and initialize an endpointSlice watcher for mirrored endpointSlices
+	mirrorEndpointSliceWatcher := kube.NewEndpointSliceWatcher(
+		fmt.Sprintf("%s-mirrorEndpointSliceWatcher", name),
+		client,
+		resyncPeriod,
+		nil,
+		labels.Set(mirrorLabels).String(),
+		namespace,
+	)
+	runner.mirrorEndpointSliceWatcher = mirrorEndpointSliceWatcher
+	runner.mirrorEndpointSliceWatcher.Init()
 
 	return runner
 }
@@ -469,6 +498,121 @@ func (r *Runner) EndpointsEventHandler(eventType watch.EventType, old *v1.Endpoi
 	case watch.Deleted:
 		log.Logger.Debug("endpoints deleted", "namespace", old.Namespace, "name", old.Name, "runner", r.name)
 		r.endpointsQueue.Add(old)
+	default:
+		log.Logger.Info("Unknown endpoints event received: %v", eventType, "runner", r.name)
+	}
+}
+
+func (r *Runner) getRemoteEndpointSlice(name, namespace string) (*discoveryv1.EndpointSlice, error) {
+	return r.endpointSliceWatcher.Get(name, namespace)
+}
+
+func (r *Runner) getEndpointSlice(name, namespace string) (*discoveryv1.EndpointSlice, error) {
+	return r.client.DiscoveryV1().EndpointSlices(namespace).Get(
+		r.ctx,
+		name,
+		metav1.GetOptions{},
+	)
+}
+
+func (r *Runner) createEndpointSlice(name, namespace, targetService string, at discoveryv1.AddressType, endpoints []discoveryv1.Endpoint, ports []discoveryv1.EndpointPort) (*discoveryv1.EndpointSlice, error) {
+	labels := r.mirrorLabels
+	labels["kubernetes.io/service-name"] = targetService
+	return r.client.DiscoveryV1().EndpointSlices(namespace).Create(
+		r.ctx,
+		&discoveryv1.EndpointSlice{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: namespace,
+				Labels:    labels,
+			},
+			AddressType: at,
+			Endpoints:   endpoints,
+			Ports:       ports,
+		},
+		metav1.CreateOptions{},
+	)
+}
+
+func (r *Runner) updateEndpointSlice(name, namespace, targetService string, endpoints []discoveryv1.Endpoint, ports []discoveryv1.EndpointPort) (*discoveryv1.EndpointSlice, error) {
+	labels := r.mirrorLabels
+	labels["kubernetes.io/service-name"] = targetService
+	// Usually no point updating address type.
+	return r.client.DiscoveryV1().EndpointSlices(namespace).Update(
+		r.ctx,
+		&discoveryv1.EndpointSlice{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: namespace,
+				Labels:    labels,
+			},
+			Endpoints: endpoints,
+			Ports:     ports,
+		},
+		metav1.UpdateOptions{},
+	)
+}
+
+func (r *Runner) deleteEndpointSlice(name, namespace string) error {
+	return r.client.DiscoveryV1().EndpointSlices(namespace).Delete(
+		r.ctx,
+		name,
+		metav1.DeleteOptions{},
+	)
+}
+func (r *Runner) reconcileEndpointSlice(name, namespace string) error {
+	// Just prefix the name with gl, since we will be using the mirrors for global services
+	mirrorName := fmt.Sprintf("gl-%s", name)
+	// Get the remote endpointslice
+	log.Logger.Info("getting remote endpointslice", "namespace", namespace, "name", name, "runner", r.name)
+	remoteEndpointSlice, err := r.getRemoteEndpointSlice(name, namespace)
+	if errors.IsNotFound(err) {
+		log.Logger.Info("remote endpointslice not found, removing local mirror", "namespace", namespace, "name", name, "runner", r.name)
+		if err := r.deleteEndpointSlice(mirrorName, r.namespace); err != nil && !errors.IsNotFound(err) {
+			return fmt.Errorf("deleting endpointslice %s/%s: %v", r.namespace, mirrorName, err)
+		}
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("getting remote endpointslice %s/%s: %v", namespace, name, err)
+
+	}
+	// Determine the local service to target
+	targetSvc, ok := remoteEndpointSlice.Labels["kubernetes.io/service-name"]
+	if !ok {
+		return fmt.Errorf("remote endpointslice is missing kubernetes.io/service-name label")
+	}
+	targetGlobalService := generateGlobalServiceName(targetSvc, namespace)
+	// If the mirror endpointslice doesn't exist, create it. Otherwise, update it.
+	log.Logger.Info("getting local endpointslice", "namespace", r.namespace, "name", mirrorName, "runner", r.name)
+	_, err = r.getEndpointSlice(mirrorName, r.namespace)
+	if errors.IsNotFound(err) {
+		log.Logger.Info("local endpointslice not found, creating", "namespace", r.namespace, "name", mirrorName, "runner", r.name)
+		if _, err := r.createEndpointSlice(mirrorName, r.namespace, targetGlobalService, remoteEndpointSlice.AddressType, remoteEndpointSlice.Endpoints, remoteEndpointSlice.Ports); err != nil {
+			return fmt.Errorf("creating endpointslice %s/%s: %v", r.namespace, mirrorName, err)
+
+		}
+	} else if err != nil {
+		return fmt.Errorf("getting endpointslice %s/%s: %v", r.namespace, mirrorName, err)
+	} else {
+		log.Logger.Info("local endpointslice found, updating", "namespace", r.namespace, "name", mirrorName, "runner", r.name)
+		if _, err := r.updateEndpointSlice(mirrorName, r.namespace, targetGlobalService, remoteEndpointSlice.Endpoints, remoteEndpointSlice.Ports); err != nil {
+			return fmt.Errorf("updating endpointslice %s/%s: %v", r.namespace, mirrorName, err)
+		}
+	}
+	return nil
+}
+
+func (r *Runner) EndpointSliceEventHandler(eventType watch.EventType, old *discoveryv1.EndpointSlice, new *discoveryv1.EndpointSlice) {
+	switch eventType {
+	case watch.Added:
+		log.Logger.Debug("endpoints added", "namespace", new.Namespace, "name", new.Name, "runner", r.name)
+		r.endpointSliceQueue.Add(new)
+	case watch.Modified:
+		log.Logger.Debug("endpoints modified", "namespace", new.Namespace, "name", new.Name, "runner", r.name)
+		r.endpointSliceQueue.Add(new)
+	case watch.Deleted:
+		log.Logger.Debug("endpoints deleted", "namespace", old.Namespace, "name", old.Name, "runner", r.name)
+		r.endpointSliceQueue.Add(old)
 	default:
 		log.Logger.Info("Unknown endpoints event received: %v", eventType, "runner", r.name)
 	}
