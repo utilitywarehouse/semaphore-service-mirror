@@ -20,34 +20,35 @@ import (
 type EndpointSliceEventHandler = func(eventType watch.EventType, old *discoveryv1.EndpointSlice, new *discoveryv1.EndpointSlice)
 
 type EndpointSliceWatcher struct {
-	ctx          context.Context
-	client       kubernetes.Interface
-	resyncPeriod time.Duration
-	stopChannel  chan struct{}
-	store        cache.Store
-	controller   cache.Controller
-	eventHandler EndpointSliceEventHandler
-	name         string
-	namespace    string
-	ListHealthy  bool
-	WatchHealthy bool
+	ctx           context.Context
+	client        kubernetes.Interface
+	resyncPeriod  time.Duration
+	stopChannel   chan struct{}
+	store         cache.Store
+	controller    cache.Controller
+	eventHandler  EndpointSliceEventHandler
+	labelSelector string
+	name          string
+	namespace     string
 }
 
 func NewEndpointSliceWatcher(name string, client kubernetes.Interface, resyncPeriod time.Duration, handler EndpointSliceEventHandler, labelSelector, namespace string) *EndpointSliceWatcher {
 	return &EndpointSliceWatcher{
-		ctx:          context.Background(),
-		client:       client,
-		resyncPeriod: resyncPeriod,
-		stopChannel:  make(chan struct{}),
-		eventHandler: handler,
-		name:         name,
-		namespace:    namespace,
+		ctx:           context.Background(),
+		client:        client,
+		resyncPeriod:  resyncPeriod,
+		stopChannel:   make(chan struct{}),
+		eventHandler:  handler,
+		labelSelector: labelSelector,
+		name:          name,
+		namespace:     namespace,
 	}
 }
 
 func (esw *EndpointSliceWatcher) Init() {
 	listWatch := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			options.LabelSelector = esw.labelSelector
 			l, err := esw.client.DiscoveryV1().EndpointSlices(esw.namespace).List(esw.ctx, options)
 			if err != nil {
 				log.Logger.Error("EndpointSlice list error", "watcher", esw.name, "err", err)
@@ -56,6 +57,7 @@ func (esw *EndpointSliceWatcher) Init() {
 			return l, err
 		},
 		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			options.LabelSelector = esw.labelSelector
 			w, err := esw.client.DiscoveryV1().EndpointSlices(esw.namespace).Watch(esw.ctx, options)
 			if err != nil {
 				log.Logger.Error("EndpointSlice watch error", "watcher", esw.name, "err", err)

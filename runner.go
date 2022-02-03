@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -287,6 +288,18 @@ func (r *Runner) getService(name, namespace string) (*v1.Service, error) {
 	)
 }
 
+func (r *Runner) getServiceUID(name, namespace string) (types.UID, error) {
+	svc, err := r.client.CoreV1().Services(namespace).Get(
+		r.ctx,
+		name,
+		metav1.GetOptions{},
+	)
+	if err != nil {
+		return "", err
+	}
+	return svc.UID, nil
+}
+
 func (r *Runner) ServiceSync() error {
 	storeSvcs, err := r.serviceWatcher.List()
 	if err != nil {
@@ -538,10 +551,9 @@ func (r *Runner) createEndpointSlice(name, namespace, targetService string, at d
 	)
 }
 
-func (r *Runner) updateEndpointSlice(name, namespace, targetService string, endpoints []discoveryv1.Endpoint, ports []discoveryv1.EndpointPort) (*discoveryv1.EndpointSlice, error) {
+func (r *Runner) updateEndpointSlice(name, namespace, targetService string, at discoveryv1.AddressType, endpoints []discoveryv1.Endpoint, ports []discoveryv1.EndpointPort) (*discoveryv1.EndpointSlice, error) {
 	labels := r.mirrorLabels
 	labels["kubernetes.io/service-name"] = targetService
-	// Usually no point updating address type.
 	return r.client.DiscoveryV1().EndpointSlices(namespace).Update(
 		r.ctx,
 		&discoveryv1.EndpointSlice{
@@ -550,8 +562,9 @@ func (r *Runner) updateEndpointSlice(name, namespace, targetService string, endp
 				Namespace: namespace,
 				Labels:    labels,
 			},
-			Endpoints: endpoints,
-			Ports:     ports,
+			AddressType: at,
+			Endpoints:   endpoints,
+			Ports:       ports,
 		},
 		metav1.UpdateOptions{},
 	)
@@ -599,7 +612,7 @@ func (r *Runner) reconcileEndpointSlice(name, namespace string) error {
 		return fmt.Errorf("getting endpointslice %s/%s: %v", r.namespace, mirrorName, err)
 	} else {
 		log.Logger.Info("local endpointslice found, updating", "namespace", r.namespace, "name", mirrorName, "runner", r.name)
-		if _, err := r.updateEndpointSlice(mirrorName, r.namespace, targetGlobalService, remoteEndpointSlice.Endpoints, remoteEndpointSlice.Ports); err != nil {
+		if _, err := r.updateEndpointSlice(mirrorName, r.namespace, targetGlobalService, remoteEndpointSlice.AddressType, remoteEndpointSlice.Endpoints, remoteEndpointSlice.Ports); err != nil {
 			return fmt.Errorf("updating endpointslice %s/%s: %v", r.namespace, mirrorName, err)
 		}
 	}
