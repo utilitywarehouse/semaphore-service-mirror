@@ -166,9 +166,13 @@ func (r *Runner) Run() error {
 	}
 	go r.endpointsWatcher.Run()
 	go r.mirrorEndpointsWatcher.Run()
+	go r.endpointSliceWatcher.Run()
+	go r.mirrorEndpointSliceWatcher.Run()
 
 	go r.serviceQueue.Run()
+	go r.globalServiceQueue.Run()
 	go r.endpointsQueue.Run()
+	go r.endpointSliceQueue.Run()
 
 	return nil
 }
