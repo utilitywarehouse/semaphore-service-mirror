@@ -64,19 +64,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Get a kube client to use with the watchers
+	// Get a kube client for the local cluster
 	homeClient, err := kube.ClientFromConfig(*flagKubeConfigPath)
 	if err != nil {
 		log.Logger.Error(
-			"cannot create kube client for homecluster",
+			"cannot create kube client for local cluster",
 			"err", err,
 		)
 		usage()
 	}
 
+	gst := newGlobalServiceStore(homeClient)
 	var runners []*Runner
 	for _, remote := range config.RemoteClusters {
-		r, err := makeRunner(homeClient, remote, config.Global)
+		r, err := makeRunner(homeClient, remote, config.Global, gst)
 		if err != nil {
 			log.Logger.Error("Failed to create runner", "err", err)
 			os.Exit(1)
@@ -115,7 +116,7 @@ func listenAndServe(runners []*Runner) {
 	)
 }
 
-func makeRunner(homeClient kubernetes.Interface, remote *remoteClusterConfig, global globalConfig) (*Runner, error) {
+func makeRunner(homeClient kubernetes.Interface, remote *remoteClusterConfig, global globalConfig, gst *GlobalServiceStore) (*Runner, error) {
 	data, err := os.ReadFile(remote.RemoteSATokenPath)
 	if err != nil {
 		return nil, fmt.Errorf("Cannot read file: %s: %v", remote.RemoteSATokenPath, err)
@@ -147,5 +148,6 @@ func makeRunner(homeClient kubernetes.Interface, remote *remoteClusterConfig, gl
 		// stored in cache.
 		remote.ResyncPeriod.Duration,
 		global.ServiceSync,
+		gst,
 	), nil
 }

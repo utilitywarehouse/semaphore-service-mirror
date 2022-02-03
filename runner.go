@@ -17,18 +17,6 @@ import (
 	"github.com/utilitywarehouse/semaphore-service-mirror/log"
 )
 
-const (
-	// Separator is inserted between the namespace and name in the mirror
-	// name to prevent clashes
-	Separator = "73736d"
-)
-
-// generateMirrorName generates a name for mirrored objects based on the name
-// and namespace of the remote object: <prefix>-<namespace>-73736d-<name>
-func generateMirrorName(prefix, namespace, name string) string {
-	return fmt.Sprintf("%s-%s-%s-%s", prefix, namespace, Separator, name)
-}
-
 type Runner struct {
 	ctx                    context.Context
 	client                 kubernetes.Interface
@@ -39,6 +27,8 @@ type Runner struct {
 	endpointsWatcher       *kube.EndpointsWatcher
 	mirrorEndpointsWatcher *kube.EndpointsWatcher
 	mirrorLabels           map[string]string
+	globalServiceStore     *GlobalServiceStore
+	globalServiceQueue     *queue
 	name                   string
 	namespace              string
 	prefix                 string
@@ -47,23 +37,25 @@ type Runner struct {
 	initialised            bool // Flag to turn on after the successful initialisation of the runner.
 }
 
-func NewRunner(client, watchClient kubernetes.Interface, name, namespace, prefix, labelselector string, resyncPeriod time.Duration, sync bool) *Runner {
+func NewRunner(client, watchClient kubernetes.Interface, name, namespace, prefix, labelselector string, resyncPeriod time.Duration, sync bool, gst *GlobalServiceStore) *Runner {
 	mirrorLabels := map[string]string{
 		"mirrored-svc":           "true",
 		"mirror-svc-prefix-sync": prefix,
 	}
 	runner := &Runner{
-		ctx:          context.Background(),
-		client:       client,
-		name:         name,
-		namespace:    namespace,
-		prefix:       prefix,
-		sync:         sync,
-		mirrorLabels: mirrorLabels,
-		initialised:  false,
+		ctx:                context.Background(),
+		client:             client,
+		name:               name,
+		namespace:          namespace,
+		prefix:             prefix,
+		sync:               sync,
+		mirrorLabels:       mirrorLabels,
+		globalServiceStore: gst,
+		initialised:        false,
 	}
 	runner.serviceQueue = newQueue(fmt.Sprintf("%s-service", name), runner.reconcileService)
 	runner.endpointsQueue = newQueue(fmt.Sprintf("%s-endpoints", name), runner.reconcileEndpoints)
+	runner.globalServiceQueue = newQueue(fmt.Sprintf("gl-service-%s", name), runner.reconcileGlobalService)
 
 	// Create and initialize a service watcher
 	serviceWatcher := kube.NewServiceWatcher(
@@ -198,6 +190,58 @@ func (r *Runner) reconcileService(name, namespace string) error {
 	return nil
 }
 
+func (r *Runner) reconcileGlobalService(name, namespace string) error {
+	globalSvcName := generateGlobalServiceName(name, namespace)
+	// Get the remote service
+	log.Logger.Info("getting remote service", "namespace", namespace, "name", name, "runner", r.name)
+	remoteSvc, err := r.getRemoteService(name, namespace)
+	if errors.IsNotFound(err) {
+		// If the remote service doesn't exist delete the cluster for
+		// the service in the globalServiceStore
+		log.Logger.Debug("deleting from global store", "namespace", namespace, "name", name, "runner", r.name)
+		gsvc := r.globalServiceStore.DeleteClusterServiceTarget(name, namespace, r.name)
+		// If the returned global service is nil, then we should try to
+		// delete the local service. If the service is already deleted
+		// continue
+		if gsvc == nil {
+			log.Logger.Info("global service not found, deleting local service", "namespace", r.namespace, "name", globalSvcName, "runner", r.name)
+			if err := r.deleteService(globalSvcName, r.namespace); err != nil && !errors.IsNotFound(err) {
+				return fmt.Errorf("deleting service %s/%s: %v", r.namespace, globalSvcName, err)
+			}
+		}
+	} else if err != nil {
+		return fmt.Errorf("getting remote service: %v", err)
+	}
+	// If the remote service wasn't deleted, try to add it to the store
+	if remoteSvc != nil {
+		_, err := r.globalServiceStore.AddOrUpdateClusterServiceTarget(remoteSvc, r.name)
+		if err != nil {
+			return fmt.Errorf("failed to create/update service: %v", err)
+		}
+	}
+	gsvc, err := r.globalServiceStore.Get(name, namespace)
+	if err != nil {
+		return fmt.Errorf("finding global service in the store: %v", err)
+	}
+	log.Logger.Debug("global service found", "name", gsvc.name, "runner", r.name)
+	// If the global service doesn't exist, create it. Otherwise, update it.
+	globalSvc, err := r.getService(globalSvcName, r.namespace)
+	if errors.IsNotFound(err) {
+		log.Logger.Info("local service not found, creating service", "namespace", r.namespace, "name", gsvc.name, "runner", r.name)
+		if _, err := r.createService(globalSvcName, r.namespace, gsvc.labels, remoteSvc.Spec.Ports, gsvc.headless); err != nil {
+			return fmt.Errorf("creating service %s/%s: %v", r.namespace, globalSvcName, err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("getting service %s/%s: %v", r.namespace, globalSvcName, err)
+	} else {
+		log.Logger.Info("local service found, updating service", "namespace", r.namespace, "name", gsvc.name, "runner", r.name)
+		if _, err := r.updateGlobalService(globalSvc, gsvc.ports, gsvc.labels); err != nil {
+			return fmt.Errorf("updating service %s/%s: %v", r.namespace, globalSvcName, err)
+		}
+	}
+	return nil
+}
+
 func (r *Runner) getRemoteService(name, namespace string) (*v1.Service, error) {
 	return r.serviceWatcher.Get(name, namespace)
 }
@@ -208,22 +252,6 @@ func (r *Runner) getService(name, namespace string) (*v1.Service, error) {
 		name,
 		metav1.GetOptions{},
 	)
-}
-
-func isHeadless(svc *v1.Service) bool {
-	if svc.Spec.ClusterIP == "None" {
-		return true
-	}
-	return false
-}
-
-func isInList(s string, l []string) bool {
-	for _, el := range l {
-		if el == s {
-			return true
-		}
-	}
-	return false
 }
 
 func (r *Runner) ServiceSync() error {
@@ -246,7 +274,8 @@ func (r *Runner) ServiceSync() error {
 	}
 
 	for _, svc := range currSvcs {
-		if !isInList(svc.Name, mirrorSvcList) {
+		_, inSlice := inSlice(mirrorSvcList, svc.Name)
+		if !inSlice {
 			log.Logger.Info(
 				"Deleting old service and related endpoint",
 				"service", svc.Name,
@@ -305,6 +334,15 @@ func (r *Runner) updateService(service *v1.Service, ports []v1.ServicePort) (*v1
 	)
 }
 
+// updateGlobalService is UpdateService that will also update the global labels to reflect clusters
+func (r *Runner) updateGlobalService(service *v1.Service, ports []v1.ServicePort, labels map[string]string) (*v1.Service, error) {
+	for k, v := range labels {
+		service.ObjectMeta.Labels[k] = v
+	}
+
+	return r.updateService(service, ports)
+}
+
 func (r *Runner) deleteService(name, namespace string) error {
 	return r.client.CoreV1().Services(namespace).Delete(
 		r.ctx,
@@ -318,12 +356,15 @@ func (r *Runner) ServiceEventHandler(eventType watch.EventType, old *v1.Service,
 	case watch.Added:
 		log.Logger.Debug("service added", "namespace", new.Namespace, "name", new.Name, "runner", r.name)
 		r.serviceQueue.Add(new)
+		r.globalServiceQueue.Add(new)
 	case watch.Modified:
 		log.Logger.Debug("service modified", "namespace", new.Namespace, "name", new.Name, "runner", r.name)
 		r.serviceQueue.Add(new)
+		r.globalServiceQueue.Add(new)
 	case watch.Deleted:
 		log.Logger.Debug("service deleted", "namespace", old.Namespace, "name", old.Name, "runner", r.name)
 		r.serviceQueue.Add(old)
+		r.globalServiceQueue.Add(old)
 	default:
 		log.Logger.Info("Unknown service event received: %v", eventType, "runner", r.name)
 	}
