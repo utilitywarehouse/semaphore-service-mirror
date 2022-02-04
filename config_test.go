@@ -20,13 +20,16 @@ func TestConfig(t *testing.T) {
 }
 `)
 	_, err := parseConfig(emptyConfig, testFlagLabelSelector, testFlagMirrorNamespace)
-	assert.Equal(t, fmt.Errorf("No remote cluster configuration defined"), err)
+	assert.Equal(t, fmt.Errorf("Configuration is missing local cluster name"), err)
 
 	globalConfigOnly := []byte(`
 {
   "global": {
     "labelSelector": "label",
     "mirrorNamespace": "sys-semaphore"
+  },
+  "localCluster":{
+    "name": "local_cluster"
   }
 }
 `)
@@ -35,6 +38,9 @@ func TestConfig(t *testing.T) {
 
 	emptyRemoteConfigName := []byte(`
 {
+  "localCluster":{
+    "name": "local_cluster"
+  },
   "remoteClusters": [
     {
       "name": ""
@@ -93,6 +99,7 @@ func TestConfig(t *testing.T) {
 	assert.Equal(t, testFlagLabelSelector, config.Global.LabelSelector)
 	assert.Equal(t, testFlagMirrorNamespace, config.Global.MirrorNamespace)
 	assert.Equal(t, true, config.Global.ServiceSync)
+	assert.Equal(t, "local_cluster", config.LocalCluster.Name)
 	assert.Equal(t, "/path/to/kube/config", config.LocalCluster.KubeConfigPath)
 	assert.Equal(t, 2, len(config.RemoteClusters))
 	assert.Equal(t, "remote_ca_url", config.RemoteClusters[0].RemoteCAURL)

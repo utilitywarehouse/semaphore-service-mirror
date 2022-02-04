@@ -10,7 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -286,18 +285,6 @@ func (r *Runner) getService(name, namespace string) (*v1.Service, error) {
 		name,
 		metav1.GetOptions{},
 	)
-}
-
-func (r *Runner) getServiceUID(name, namespace string) (types.UID, error) {
-	svc, err := r.client.CoreV1().Services(namespace).Get(
-		r.ctx,
-		name,
-		metav1.GetOptions{},
-	)
-	if err != nil {
-		return "", err
-	}
-	return svc.UID, nil
 }
 
 func (r *Runner) ServiceSync() error {

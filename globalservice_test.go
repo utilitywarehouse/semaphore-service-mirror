@@ -137,9 +137,3 @@ func TestDeleteClusterServiceTarget_NotPresent(t *testing.T) {
 	store.DeleteClusterServiceTarget(svcB.Name, svcB.Namespace, clusterB)
 	assert.Equal(t, 1, store.Len())
 }
-
-func TestAddOrUpdateEndpointSlice_AddSliceToService(t *testing.T) {
-	//store := createTestStore(t, []testService{
-	//	testService{cluster: "cluster", name: "name", namespace: "namespace", clusterIP: "1.1.1.1", ports: []int32{80}},
-	//})
-}

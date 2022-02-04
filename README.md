@@ -48,6 +48,7 @@ Contains configuration globally shared by all runners.
 Contains configuration needed to manage resources in the local cluster, where
 this operator runs.
 
+* `name`: A name for the local cluster
 * `kubeConfigPath`: Path to a kube config file to access the local cluster. If
   not specified the operator will try to use in-cluster configuration with the
   pod's service account.
@@ -81,6 +82,7 @@ cluster.
     "serviceSync": true
   },
   "localCluster": {
+    "name": "local",
     "kubeConfigPath": "/path/to/local/kubeconfig"
   },
   "remoteClusters": [

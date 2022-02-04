@@ -52,6 +52,7 @@ type globalConfig struct {
 }
 
 type localClusterConfig struct {
+	Name           string `json:"name"`
 	KubeConfigPath string `json:"kubeConfigPath"`
 }
 
@@ -89,6 +90,9 @@ func parseConfig(rawConfig []byte, flagLabelSelector, flagMirrorNamespace string
 	}
 	if conf.Global.MirrorNamespace == "" {
 		return nil, fmt.Errorf("Local mirroring namespace should be specified either via global json config, env vars or flag")
+	}
+	if conf.LocalCluster.Name == "" {
+		return nil, fmt.Errorf("Configuration is missing local cluster name")
 	}
 
 	// Check for mandatory remote config.

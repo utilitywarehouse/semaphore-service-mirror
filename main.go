@@ -75,17 +75,21 @@ func main() {
 	}
 
 	gst := newGlobalServiceStore(homeClient)
-	var runners []*Runner
+	r, err := makeLocalRunner(homeClient, config.LocalCluster.Name, config.Global, gst)
+	if err != nil {
+		log.Logger.Error("Failed to create runner", "err", err)
+		os.Exit(1)
+	}
+	go func() { backoff.Retry(r.Run, "start runner") }()
+	runners := []*Runner{r}
 	for _, remote := range config.RemoteClusters {
-		r, err := makeRunner(homeClient, remote, config.Global, gst)
+		r, err := makeRemoteRunner(homeClient, remote, config.Global, gst)
 		if err != nil {
 			log.Logger.Error("Failed to create runner", "err", err)
 			os.Exit(1)
 		}
 		runners = append(runners, r)
-		go func() {
-			backoff.Retry(r.Run, "start runner")
-		}()
+		go func() { backoff.Retry(r.Run, "start runner") }()
 	}
 
 	listenAndServe(runners)
@@ -116,7 +120,7 @@ func listenAndServe(runners []*Runner) {
 	)
 }
 
-func makeRunner(homeClient kubernetes.Interface, remote *remoteClusterConfig, global globalConfig, gst *GlobalServiceStore) (*Runner, error) {
+func makeRemoteRunner(homeClient kubernetes.Interface, remote *remoteClusterConfig, global globalConfig, gst *GlobalServiceStore) (*Runner, error) {
 	data, err := os.ReadFile(remote.RemoteSATokenPath)
 	if err != nil {
 		return nil, fmt.Errorf("Cannot read file: %s: %v", remote.RemoteSATokenPath, err)
@@ -147,6 +151,23 @@ func makeRunner(homeClient kubernetes.Interface, remote *remoteClusterConfig, gl
 		// Resync will trigger an onUpdate event for everything that is
 		// stored in cache.
 		remote.ResyncPeriod.Duration,
+		global.ServiceSync,
+		gst,
+	), nil
+}
+
+func makeLocalRunner(homeClient kubernetes.Interface, name string, global globalConfig, gst *GlobalServiceStore) (*Runner, error) {
+	// hardcode the service prefix as cluster name
+	servicePrefix := name
+	return NewRunner(
+		homeClient,
+		homeClient,
+		name,
+		global.MirrorNamespace,
+		servicePrefix,
+		global.LabelSelector,
+		// TODO: Need to specify resync period?
+		0,
 		global.ServiceSync,
 		gst,
 	), nil
