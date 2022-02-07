@@ -39,9 +39,10 @@ type Runner struct {
 	labelselector              string
 	sync                       bool
 	initialised                bool // Flag to turn on after the successful initialisation of the runner.
+	local                      bool // Flag to identify if the runner is running against a local or remote cluster
 }
 
-func NewRunner(client, watchClient kubernetes.Interface, name, namespace, prefix, labelselector string, resyncPeriod time.Duration, sync bool, gst *GlobalServiceStore) *Runner {
+func NewRunner(client, watchClient kubernetes.Interface, name, namespace, prefix, labelselector string, resyncPeriod time.Duration, sync bool, gst *GlobalServiceStore, local bool) *Runner {
 	mirrorLabels := map[string]string{
 		"mirrored-svc":           "true",
 		"mirror-svc-prefix-sync": prefix,
@@ -56,6 +57,7 @@ func NewRunner(client, watchClient kubernetes.Interface, name, namespace, prefix
 		mirrorLabels:       mirrorLabels,
 		globalServiceStore: gst,
 		initialised:        false,
+		local:              local,
 	}
 	runner.serviceQueue = newQueue(fmt.Sprintf("%s-service", name), runner.reconcileService)
 	runner.globalServiceQueue = newQueue(fmt.Sprintf("%s-gl-service", name), runner.reconcileGlobalService)
@@ -208,7 +210,7 @@ func (r *Runner) reconcileService(name, namespace string) error {
 	mirrorSvc, err := r.getService(mirrorName, r.namespace)
 	if errors.IsNotFound(err) {
 		log.Logger.Info("local service not found, creating service", "namespace", r.namespace, "name", mirrorName, "runner", r.name)
-		if _, err := r.createService(mirrorName, r.namespace, r.mirrorLabels, remoteSvc.Spec.Ports, isHeadless(remoteSvc)); err != nil {
+		if _, err := r.createService(mirrorName, r.namespace, r.mirrorLabels, map[string]string{}, remoteSvc.Spec.Ports, isHeadless(remoteSvc)); err != nil {
 			return fmt.Errorf("creating service %s/%s: %v", r.namespace, mirrorName, err)
 		}
 	} else if err != nil {
@@ -261,14 +263,14 @@ func (r *Runner) reconcileGlobalService(name, namespace string) error {
 	globalSvc, err := r.getService(globalSvcName, r.namespace)
 	if errors.IsNotFound(err) {
 		log.Logger.Info("local service not found, creating service", "namespace", r.namespace, "name", gsvc.name, "runner", r.name)
-		if _, err := r.createService(globalSvcName, r.namespace, gsvc.labels, remoteSvc.Spec.Ports, gsvc.headless); err != nil {
+		if _, err := r.createService(globalSvcName, r.namespace, gsvc.labels, gsvc.annotations, remoteSvc.Spec.Ports, gsvc.headless); err != nil {
 			return fmt.Errorf("creating service %s/%s: %v", r.namespace, globalSvcName, err)
 		}
 	} else if err != nil {
 		return fmt.Errorf("getting service %s/%s: %v", r.namespace, globalSvcName, err)
 	} else {
 		log.Logger.Info("local service found, updating service", "namespace", r.namespace, "name", gsvc.name, "runner", r.name)
-		if _, err := r.updateGlobalService(globalSvc, gsvc.ports, gsvc.labels); err != nil {
+		if _, err := r.updateGlobalService(globalSvc, gsvc.ports, gsvc.annotations); err != nil {
 			return fmt.Errorf("updating service %s/%s: %v", r.namespace, globalSvcName, err)
 		}
 	}
@@ -330,14 +332,15 @@ func (r *Runner) ServiceSync() error {
 	return nil
 }
 
-func (r *Runner) createService(name, namespace string, labels map[string]string, ports []v1.ServicePort, headless bool) (*v1.Service, error) {
+func (r *Runner) createService(name, namespace string, labels, annotations map[string]string, ports []v1.ServicePort, headless bool) (*v1.Service, error) {
 	// Create clusterIP or headless type services. There is no reason to
 	// create anything with an external ip.
 	svc := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Labels:    labels,
+			Name:        name,
+			Namespace:   namespace,
+			Labels:      labels,
+			Annotations: annotations,
 		},
 		Spec: v1.ServiceSpec{
 			Ports:    ports,
@@ -367,10 +370,10 @@ func (r *Runner) updateService(service *v1.Service, ports []v1.ServicePort) (*v1
 	)
 }
 
-// updateGlobalService is UpdateService that will also update the global labels to reflect clusters
-func (r *Runner) updateGlobalService(service *v1.Service, ports []v1.ServicePort, labels map[string]string) (*v1.Service, error) {
-	for k, v := range labels {
-		service.ObjectMeta.Labels[k] = v
+// updateGlobalService is UpdateService that will also update the annotations to reflect clusters
+func (r *Runner) updateGlobalService(service *v1.Service, ports []v1.ServicePort, annotations map[string]string) (*v1.Service, error) {
+	for k, v := range annotations {
+		service.ObjectMeta.Annotations[k] = v
 	}
 
 	return r.updateService(service, ports)
@@ -519,19 +522,50 @@ func (r *Runner) getEndpointSlice(name, namespace string) (*discoveryv1.Endpoint
 	)
 }
 
-func (r *Runner) createEndpointSlice(name, namespace, targetService string, at discoveryv1.AddressType, endpoints []discoveryv1.Endpoint, ports []discoveryv1.EndpointPort) (*discoveryv1.EndpointSlice, error) {
+func (r *Runner) generateEndpointSliceLabels(targetService string) map[string]string {
 	labels := r.mirrorLabels
 	labels["kubernetes.io/service-name"] = targetService
+	labels["endpointslice.kubernetes.io/managed-by"] = "semaphore-service-mirror"
+	return labels
+}
+
+// kube-proxy needs all Endpoints to have hints in order to allow topology aware routing.
+func (r *Runner) ensureEndpointSliceZones(endpoints []discoveryv1.Endpoint) []discoveryv1.Endpoint {
+	var es []discoveryv1.Endpoint
+	// For endpoints in remote clusters use a dummy zone and hint that will never be picker by kube-proxy
+	if !r.local {
+		zone := "remote"
+		for _, e := range endpoints {
+			e.Zone = &zone
+			e.Hints = &discoveryv1.EndpointHints{
+				ForZones: []discoveryv1.ForZone{
+					discoveryv1.ForZone{Name: "remote"}},
+			}
+			es = append(es, e)
+		}
+		return es
+	}
+	// For local endpoints allow all zones as set in config
+	for _, e := range endpoints {
+		e.Hints = &discoveryv1.EndpointHints{
+			ForZones: DefaultLocalEndpointZones,
+		}
+		es = append(es, e)
+	}
+	return es
+}
+
+func (r *Runner) createEndpointSlice(name, namespace, targetService string, at discoveryv1.AddressType, endpoints []discoveryv1.Endpoint, ports []discoveryv1.EndpointPort) (*discoveryv1.EndpointSlice, error) {
 	return r.client.DiscoveryV1().EndpointSlices(namespace).Create(
 		r.ctx,
 		&discoveryv1.EndpointSlice{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
 				Namespace: namespace,
-				Labels:    labels,
+				Labels:    r.generateEndpointSliceLabels(targetService),
 			},
 			AddressType: at,
-			Endpoints:   endpoints,
+			Endpoints:   r.ensureEndpointSliceZones(endpoints),
 			Ports:       ports,
 		},
 		metav1.CreateOptions{},
@@ -539,18 +573,16 @@ func (r *Runner) createEndpointSlice(name, namespace, targetService string, at d
 }
 
 func (r *Runner) updateEndpointSlice(name, namespace, targetService string, at discoveryv1.AddressType, endpoints []discoveryv1.Endpoint, ports []discoveryv1.EndpointPort) (*discoveryv1.EndpointSlice, error) {
-	labels := r.mirrorLabels
-	labels["kubernetes.io/service-name"] = targetService
 	return r.client.DiscoveryV1().EndpointSlices(namespace).Update(
 		r.ctx,
 		&discoveryv1.EndpointSlice{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
 				Namespace: namespace,
-				Labels:    labels,
+				Labels:    r.generateEndpointSliceLabels(targetService),
 			},
 			AddressType: at,
-			Endpoints:   endpoints,
+			Endpoints:   r.ensureEndpointSliceZones(endpoints),
 			Ports:       ports,
 		},
 		metav1.UpdateOptions{},

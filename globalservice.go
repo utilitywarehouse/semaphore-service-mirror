@@ -9,17 +9,24 @@ import (
 )
 
 type GlobalService struct {
-	name      string
-	namespace string
-	ports     []v1.ServicePort
-	headless  bool
-	labels    map[string]string
-	clusters  []string
+	name        string
+	namespace   string
+	ports       []v1.ServicePort
+	headless    bool
+	labels      map[string]string
+	annotations map[string]string
+	clusters    []string
 }
 
+const (
+	kubeSeviceTopologyAwareHintsAnno    = "service.kubernetes.io/topology-aware-hints"
+	kubeSeviceTopologyAwareHintsAnnoVal = "auto"
+)
+
 var (
-	globalSvcLabels        = map[string]string{"global-svc": "true"}
-	globalSvcClustersLabel = "global-svc-clusters"
+	globalSvcLabels       = map[string]string{"global-svc": "true"}
+	globalSvcAnnotations  = map[string]string{kubeSeviceTopologyAwareHintsAnno: kubeSeviceTopologyAwareHintsAnnoVal} // Kube annotation to enable topolgy aware routing
+	globalSvcClustersAnno = "global-svc-clusters"
 )
 
 type GlobalServiceStore struct {
@@ -43,14 +50,15 @@ func (gss *GlobalServiceStore) AddOrUpdateClusterServiceTarget(svc *v1.Service, 
 	// Add new service in the store if it doesn't exist
 	if !ok {
 		gsvc = &GlobalService{
-			name:      svc.Name,
-			namespace: svc.Namespace,
-			ports:     svc.Spec.Ports,
-			headless:  isHeadless(svc),
-			labels:    globalSvcLabels,
-			clusters:  []string{cluster},
+			name:        svc.Name,
+			namespace:   svc.Namespace,
+			ports:       svc.Spec.Ports,
+			headless:    isHeadless(svc),
+			labels:      globalSvcLabels,
+			annotations: globalSvcAnnotations,
+			clusters:    []string{cluster},
 		}
-		gsvc.labels[globalSvcClustersLabel] = fmt.Sprintf("%s", cluster)
+		gsvc.annotations[globalSvcClustersAnno] = fmt.Sprintf("%s", cluster)
 		gss.store[gsvcName] = gsvc
 		return gsvc, nil
 	}
@@ -61,7 +69,7 @@ func (gss *GlobalServiceStore) AddOrUpdateClusterServiceTarget(svc *v1.Service, 
 	if _, found := inSlice(gsvc.clusters, cluster); !found {
 		gsvc.clusters = append(gsvc.clusters, cluster)
 	}
-	gsvc.labels[globalSvcClustersLabel] = strings.Join(gsvc.clusters, ",")
+	gsvc.annotations[globalSvcClustersAnno] = strings.Join(gsvc.clusters, ",")
 	return gsvc, nil
 }
 
@@ -82,7 +90,7 @@ func (gss *GlobalServiceStore) DeleteClusterServiceTarget(name, namespace, clust
 		delete(gss.store, gsvcName)
 		return nil
 	}
-	gsvc.labels[globalSvcClustersLabel] = strings.Join(gsvc.clusters, ",")
+	gsvc.annotations[globalSvcClustersAnno] = strings.Join(gsvc.clusters, ",")
 	return gsvc
 }
 

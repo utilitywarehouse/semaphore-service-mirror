@@ -63,6 +63,8 @@ func main() {
 		log.Logger.Error("Cannot parse config", "err", err)
 		os.Exit(1)
 	}
+	// set DefaultLocalEndpointZones value for topology aware routing
+	setLocalEndpointZones(config.LocalCluster.Zones)
 
 	// Get a kube client for the local cluster
 	homeClient, err := kube.ClientFromConfig(*flagKubeConfigPath)
@@ -153,6 +155,7 @@ func makeRemoteRunner(homeClient kubernetes.Interface, remote *remoteClusterConf
 		remote.ResyncPeriod.Duration,
 		global.ServiceSync,
 		gst,
+		false,
 	), nil
 }
 
@@ -170,5 +173,6 @@ func makeLocalRunner(homeClient kubernetes.Interface, name string, global global
 		0,
 		global.ServiceSync,
 		gst,
+		true,
 	), nil
 }

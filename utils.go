@@ -4,12 +4,17 @@ import (
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 )
 
 const (
 	// Separator is inserted between the namespace and name in the mirror
 	// name to prevent clashes
 	Separator = "73736d"
+)
+
+var (
+	DefaultLocalEndpointZones []discoveryv1.ForZone
 )
 
 // generateMirrorName generates a name for mirrored objects based on the name
@@ -22,6 +27,12 @@ func generateMirrorName(prefix, namespace, name string) string {
 // name and namespace of the remote object: gl-<namespace>-73736d-<name>
 func generateGlobalServiceName(name, namespace string) string {
 	return fmt.Sprintf("gl-%s-%s-%s", namespace, Separator, name)
+}
+
+func setLocalEndpointZones(zones []string) {
+	for _, z := range zones {
+		DefaultLocalEndpointZones = append(DefaultLocalEndpointZones, discoveryv1.ForZone{Name: z})
+	}
 }
 
 func inSlice(slice []string, val string) (int, bool) {

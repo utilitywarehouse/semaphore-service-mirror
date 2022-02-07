@@ -50,7 +50,7 @@ func assertExpectedServices(t *testing.T, ctx context.Context, expectedSvcs []Te
 	}
 }
 
-func assertExpectedServicesGlobalLabels(t *testing.T, ctx context.Context, fakeClient *fake.Clientset, svcName, namespace, expectedLabel string) {
+func assertExpectedServicesGlobalLabelsAnnotations(t *testing.T, ctx context.Context, fakeClient *fake.Clientset, svcName, namespace, expectedClusters string) {
 	svc, err := fakeClient.CoreV1().Services(namespace).Get(
 		ctx,
 		svcName,
@@ -60,7 +60,8 @@ func assertExpectedServicesGlobalLabels(t *testing.T, ctx context.Context, fakeC
 		t.Fatal(err)
 	}
 	assert.Equal(t, "true", svc.Labels["global-svc"])
-	assert.Equal(t, expectedLabel, svc.Labels[globalSvcClustersLabel])
+	assert.Equal(t, kubeSeviceTopologyAwareHintsAnnoVal, svc.Annotations[kubeSeviceTopologyAwareHintsAnno])
+	assert.Equal(t, expectedClusters, svc.Annotations[globalSvcClustersAnno])
 }
 
 func TestAddService(t *testing.T) {
@@ -96,6 +97,7 @@ func TestAddService(t *testing.T) {
 		60*time.Minute,
 		true,
 		testGlobalStore,
+		false,
 	)
 	go testRunner.serviceWatcher.Run()
 	cache.WaitForNamedCacheSync("serviceWatcher", ctx.Done(), testRunner.serviceWatcher.HasSynced)
@@ -159,6 +161,7 @@ func TestAddHeadlessService(t *testing.T) {
 		60*time.Minute,
 		true,
 		testGlobalStore,
+		false,
 	)
 	go testRunner.serviceWatcher.Run()
 	cache.WaitForNamedCacheSync("serviceWatcher", ctx.Done(), testRunner.serviceWatcher.HasSynced)
@@ -233,6 +236,7 @@ func TestModifyService(t *testing.T) {
 		60*time.Minute,
 		true,
 		testGlobalStore,
+		false,
 	)
 	go testRunner.serviceWatcher.Run()
 	cache.WaitForNamedCacheSync("serviceWatcher", ctx.Done(), testRunner.serviceWatcher.HasSynced)
@@ -303,6 +307,7 @@ func TestModifyServiceNoChange(t *testing.T) {
 		60*time.Minute,
 		true,
 		nil,
+		false,
 	)
 	go testRunner.serviceWatcher.Run()
 	cache.WaitForNamedCacheSync("serviceWatcher", ctx.Done(), testRunner.serviceWatcher.HasSynced)
@@ -382,6 +387,7 @@ func TestServiceSync(t *testing.T) {
 		60*time.Minute,
 		true,
 		nil,
+		false,
 	)
 	go testRunner.serviceWatcher.Run()
 	go testRunner.mirrorServiceWatcher.Run()
@@ -454,6 +460,7 @@ func TestAddGlobalServiceMultipleClusters(t *testing.T) {
 		60*time.Minute,
 		true,
 		testGlobalStore,
+		false,
 	)
 	testRunnerB := NewRunner(
 		fakeClient,
@@ -465,6 +472,7 @@ func TestAddGlobalServiceMultipleClusters(t *testing.T) {
 		60*time.Minute,
 		true,
 		testGlobalStore,
+		false,
 	)
 
 	go testRunnerA.serviceWatcher.Run()
@@ -485,12 +493,12 @@ func TestAddGlobalServiceMultipleClusters(t *testing.T) {
 
 	testRunnerA.reconcileGlobalService("test-svc", "remote-ns")
 	assertExpectedServices(t, ctx, expectedSvcs, fakeClient)
-	assertExpectedServicesGlobalLabels(t, ctx, fakeClient, fmt.Sprintf("gl-remote-ns-%s-test-svc", Separator), "local-ns", "runnerA")
+	assertExpectedServicesGlobalLabelsAnnotations(t, ctx, fakeClient, fmt.Sprintf("gl-remote-ns-%s-test-svc", Separator), "local-ns", "runnerA")
 
 	// Reconciling the service from cluster B should only edit the respective label
 	testRunnerB.reconcileGlobalService("test-svc", "remote-ns")
 	assertExpectedServices(t, ctx, expectedSvcs, fakeClient)
-	assertExpectedServicesGlobalLabels(t, ctx, fakeClient, fmt.Sprintf("gl-remote-ns-%s-test-svc", Separator), "local-ns", "runnerA,runnerB")
+	assertExpectedServicesGlobalLabelsAnnotations(t, ctx, fakeClient, fmt.Sprintf("gl-remote-ns-%s-test-svc", Separator), "local-ns", "runnerA,runnerB")
 
 }
 
@@ -503,28 +511,31 @@ func TestDeleteGlobalServiceMultipleClusters(t *testing.T) {
 	existingPorts := []v1.ServicePort{v1.ServicePort{Port: 1}}
 	existingSvc := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("gl-remote-ns-%s-test-svc", Separator),
-			Namespace: "local-ns",
-			Labels:    globalSvcLabels,
+			Name:        fmt.Sprintf("gl-remote-ns-%s-test-svc", Separator),
+			Namespace:   "local-ns",
+			Labels:      globalSvcLabels,
+			Annotations: globalSvcAnnotations,
 		},
 		Spec: v1.ServiceSpec{
 			Ports:     existingPorts,
 			ClusterIP: "",
 		},
 	}
-	existingSvc.Labels[globalSvcClustersLabel] = "runnerA,runnerB"
+	existingSvc.Annotations[globalSvcClustersAnno] = "runnerA,runnerB"
 
 	fakeClient := fake.NewSimpleClientset(existingSvc)
 	testGlobalStore := newGlobalServiceStore(fakeClient)
 	// Add the existing service into global store from both clusters
 	labels := globalSvcLabels
-	labels[globalSvcClustersLabel] = "runnerA,runnerB"
+	annotations := globalSvcAnnotations
+	annotations[globalSvcClustersAnno] = "runnerA,runnerB"
 	testGlobalStore.store[fmt.Sprintf("gl-remote-ns-%s-test-svc", Separator)] = &GlobalService{
-		name:      "test-svc",
-		namespace: "remote-ns",
-		ports:     existingPorts,
-		labels:    labels,
-		clusters:  []string{"runnerA", "runnerB"},
+		name:        "test-svc",
+		namespace:   "remote-ns",
+		ports:       existingPorts,
+		labels:      labels,
+		annotations: annotations,
+		clusters:    []string{"runnerA", "runnerB"},
 	}
 
 	// Remote fake clients won't have any services as we are deleting
@@ -541,6 +552,7 @@ func TestDeleteGlobalServiceMultipleClusters(t *testing.T) {
 		60*time.Minute,
 		true,
 		testGlobalStore,
+		false,
 	)
 	testRunnerB := NewRunner(
 		fakeClient,
@@ -552,6 +564,7 @@ func TestDeleteGlobalServiceMultipleClusters(t *testing.T) {
 		60*time.Minute,
 		true,
 		testGlobalStore,
+		false,
 	)
 
 	go testRunnerA.serviceWatcher.Run()
@@ -570,11 +583,11 @@ func TestDeleteGlobalServiceMultipleClusters(t *testing.T) {
 		Spec:      expectedSpec,
 	}}
 	assertExpectedServices(t, ctx, expectedSvcs, fakeClient)
-	assertExpectedServicesGlobalLabels(t, ctx, fakeClient, fmt.Sprintf("gl-remote-ns-%s-test-svc", Separator), "local-ns", "runnerA,runnerB")
+	assertExpectedServicesGlobalLabelsAnnotations(t, ctx, fakeClient, fmt.Sprintf("gl-remote-ns-%s-test-svc", Separator), "local-ns", "runnerA,runnerB")
 	// Deleting the service from cluster A should only edit the respective label
 	testRunnerA.reconcileGlobalService("test-svc", "remote-ns")
 	assertExpectedServices(t, ctx, expectedSvcs, fakeClient)
-	assertExpectedServicesGlobalLabels(t, ctx, fakeClient, fmt.Sprintf("gl-remote-ns-%s-test-svc", Separator), "local-ns", "runnerB")
+	assertExpectedServicesGlobalLabelsAnnotations(t, ctx, fakeClient, fmt.Sprintf("gl-remote-ns-%s-test-svc", Separator), "local-ns", "runnerB")
 
 	// Deleting the service from cluster B should delete the global service
 	testRunnerB.reconcileGlobalService("test-svc", "remote-ns")

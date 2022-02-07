@@ -49,6 +49,9 @@ Contains configuration needed to manage resources in the local cluster, where
 this operator runs.
 
 * `name`: A name for the local cluster
+* `zones`: A list of the availability zones for the local cluster. This will be
+  used to allow topology aware routing for global services and the values should
+  derive from kuberenetes nodes' `topology.kubernetes.io/zone` label.
 * `kubeConfigPath`: Path to a kube config file to access the local cluster. If
   not specified the operator will try to use in-cluster configuration with the
   pod's service account.
@@ -163,3 +166,64 @@ to match services on the local namespace that the services are mirrored.
 target cluster and the local namespace that contains the mirrored services.
 * note that the above example assumes that you are running the mirroring service
 with a prefix flag that matches the target cluster name.
+
+## Global Services
+
+For every mirrored service, the operator is also going to create a global
+service. The global service will gather endpoints from multiple remote clusters
+that live under the "same" namespace and name, under a single local service
+with endpoints in multiple clusters. For that purpose, it will create a single
+ClusterIP service and mirror endpointslices from remote clusters to target the
+new "global" service.
+
+The format of the name used for the global service is:
+`gl-<namespace>-73736d-<name>`.
+
+For example, if we have the following services:
+- cluster: cA, namespace: example-ns, name: my-svc, endpoints: [eA]
+- cluster: cB, namespace: example-ns, name: my-svc, endpoints: [eB1, eB2]
+The operator will create a global service under the local "semaphore" namespace
+with a corresponding list of endpoints: [eA, eB1, eB2].
+
+* Global services will include endpoints from the local cluster as well,
+  provided they are using the mirror label.
+* No new label is needed in order to use the global services.
+* Global services will try to utilise Kubernetes topology aware hints to route
+  to local endpoints first.
+
+### CoreDNS config for Global services
+
+In order to be able to resolve the global services under `cluster.global`
+domain, the following CoreDNS block is needed:
+```
+cluster.global {
+    cache 30
+    errors
+    forward . /etc/resolv.conf
+    kubernetes cluster.local {
+        pods insecure
+        endpoint_pod_names
+    }
+    loadbalance
+    loop
+    prometheus
+    reload
+    rewrite continue {
+        name regex ([\w-]*\.)?([\w-]*)\.([\w-]*)\.svc\.cluster\.global {1}gl-{3}-73736d-{2}.sys-semaphore.svc.cluster.local
+        answer name ([\w-]*\.)?gl-([\w-]*)-73736d-([\w-]*)\.sys-semaphore\.svc\.cluster\.local {1}{4}.{3}.svc.cluster.global
+    }
+}
+```
+
+### Topology routing
+
+It is usually preferable to route to endpoints that live closer when addressing
+global services. For that purpose the operator will annotate all created global
+services with `service.kubernetes.io/topology-aware-hints=auto` and try to add
+hints on all the mirrored endpoints. In order to be able to use meaningful
+hints, the operator reads the local configuration `zones` field and uses the
+list of zones defined there as hints for local endpoints. If this is not set, a
+dummy value will be used. The operator also uses the dummy "remote" zone value
+as a hint for endpoits mirrored from remote clusters, to make sure that no
+routing decisions will be made on those and kube proxy will not complain about
+missing hints at the same time.
