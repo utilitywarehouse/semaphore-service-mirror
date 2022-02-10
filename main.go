@@ -77,21 +77,21 @@ func main() {
 	}
 
 	gst := newGlobalServiceStore(homeClient)
-	r, err := makeLocalRunner(homeClient, config.LocalCluster.Name, config.Global, gst)
-	if err != nil {
-		log.Logger.Error("Failed to create runner", "err", err)
-		os.Exit(1)
-	}
-	go func() { backoff.Retry(r.Run, "start runner") }()
-	runners := []*Runner{r}
+	gr := makeGlobalRunner(homeClient, homeClient, config.LocalCluster.Name, config.Global, gst, true)
+	go func() { backoff.Retry(gr.Run, "start runner") }()
+	runners := []Runner{gr}
 	for _, remote := range config.RemoteClusters {
-		r, err := makeRemoteRunner(homeClient, remote, config.Global, gst)
+		remoteClient, err := makeRemoteKubeClientFromConfig(remote)
 		if err != nil {
-			log.Logger.Error("Failed to create runner", "err", err)
+			log.Logger.Error("cannot create kube client for remotecluster", "err", err)
 			os.Exit(1)
 		}
-		runners = append(runners, r)
-		go func() { backoff.Retry(r.Run, "start runner") }()
+		mr := makeMirrorRunner(homeClient, remoteClient, remote, config.Global)
+		runners = append(runners, mr)
+		go func() { backoff.Retry(mr.Run, "start mirror runner") }()
+		gr := makeGlobalRunner(homeClient, remoteClient, remote.Name, config.Global, gst, false)
+		runners = append(runners, gr)
+		go func() { backoff.Retry(gr.Run, "start mirror runner") }()
 	}
 
 	listenAndServe(runners)
@@ -101,14 +101,14 @@ func main() {
 	}
 }
 
-func listenAndServe(runners []*Runner) {
+func listenAndServe(runners []Runner) {
 	sm := http.NewServeMux()
 	sm.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		// A meaningful health check would be to verify that all runners
 		// have started or kick the app otherwise via a liveness probe.
 		// Client errors should be monitored via metrics.
 		for _, r := range runners {
-			if !r.initialised {
+			if !r.Initialised() {
 				w.WriteHeader(http.StatusServiceUnavailable)
 				return
 			}
@@ -122,7 +122,11 @@ func listenAndServe(runners []*Runner) {
 	)
 }
 
-func makeRemoteRunner(homeClient kubernetes.Interface, remote *remoteClusterConfig, global globalConfig, gst *GlobalServiceStore) (*Runner, error) {
+func makeRemoteKubeClientFromConfig(remote *remoteClusterConfig) (*kubernetes.Clientset, error) {
+	if remote.KubeConfigPath != "" {
+		return kube.ClientFromConfig(remote.KubeConfigPath)
+	}
+	// If kubeconfig path is not set, try to use craft it from the rest of the config
 	data, err := os.ReadFile(remote.RemoteSATokenPath)
 	if err != nil {
 		return nil, fmt.Errorf("Cannot read file: %s: %v", remote.RemoteSATokenPath, err)
@@ -134,16 +138,11 @@ func makeRemoteRunner(homeClient kubernetes.Interface, remote *remoteClusterConf
 			return nil, fmt.Errorf("The provided token does not match regex: %s", bearerRe.String())
 		}
 	}
-	var remoteClient *kubernetes.Clientset
-	if remote.KubeConfigPath != "" {
-		remoteClient, err = kube.ClientFromConfig(remote.KubeConfigPath)
-	} else {
-		remoteClient, err = kube.Client(saToken, remote.RemoteAPIURL, remote.RemoteCAURL)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("cannot create kube client for remotecluster %v", err)
-	}
-	return NewRunner(
+	return kube.Client(saToken, remote.RemoteAPIURL, remote.RemoteCAURL)
+}
+
+func makeMirrorRunner(homeClient, remoteClient *kubernetes.Clientset, remote *remoteClusterConfig, global globalConfig) *MirrorRunner {
+	return NewMirrorRunner(
 		homeClient,
 		remoteClient,
 		remote.Name,
@@ -154,25 +153,19 @@ func makeRemoteRunner(homeClient kubernetes.Interface, remote *remoteClusterConf
 		// stored in cache.
 		remote.ResyncPeriod.Duration,
 		global.ServiceSync,
-		gst,
-		false,
-	), nil
+	)
 }
 
-func makeLocalRunner(homeClient kubernetes.Interface, name string, global globalConfig, gst *GlobalServiceStore) (*Runner, error) {
-	// hardcode the service prefix as cluster name
-	servicePrefix := name
-	return NewRunner(
+func makeGlobalRunner(homeClient, remoteClient *kubernetes.Clientset, name string, global globalConfig, gst *GlobalServiceStore, localCluster bool) *GlobalRunner {
+	return NewGlobalRunner(
 		homeClient,
-		homeClient,
+		remoteClient,
 		name,
 		global.MirrorNamespace,
-		servicePrefix,
 		global.LabelSelector,
 		// TODO: Need to specify resync period?
 		0,
-		global.ServiceSync,
 		gst,
-		true,
-	), nil
+		localCluster,
+	)
 }

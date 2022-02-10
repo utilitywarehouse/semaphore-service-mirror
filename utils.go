@@ -29,6 +29,19 @@ func generateGlobalServiceName(name, namespace string) string {
 	return fmt.Sprintf("gl-%s-%s-%s", namespace, Separator, name)
 }
 
+// generateGlobalEndpointSliceName just prefixes the name with `gl-`, and relies
+// on kubernetes suffixes for endpointslices to not collide.
+func generateGlobalEndpointSliceName(name string) string {
+	return fmt.Sprintf("gl-%s", name)
+}
+
+func generateEndpointSliceLabels(targetService string) map[string]string {
+	labels := map[string]string{}
+	labels["kubernetes.io/service-name"] = targetService
+	labels["endpointslice.kubernetes.io/managed-by"] = "semaphore-service-mirror"
+	return labels
+}
+
 func setLocalEndpointZones(zones []string) {
 	for _, z := range zones {
 		DefaultLocalEndpointZones = append(DefaultLocalEndpointZones, discoveryv1.ForZone{Name: z})
