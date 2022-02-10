@@ -36,7 +36,7 @@ type MirrorRunner struct {
 	initialised            bool // Flag to turn on after the successful initialisation of the runner.
 }
 
-func NewMirrorRunner(client, watchClient kubernetes.Interface, name, namespace, prefix, labelselector string, resyncPeriod time.Duration, sync bool) *MirrorRunner {
+func newMirrorRunner(client, watchClient kubernetes.Interface, name, namespace, prefix, labelselector string, resyncPeriod time.Duration, sync bool) *MirrorRunner {
 	mirrorLabels := map[string]string{
 		"mirrored-svc":           "true",
 		"mirror-svc-prefix-sync": prefix,
@@ -105,6 +105,7 @@ func NewMirrorRunner(client, watchClient kubernetes.Interface, name, namespace, 
 	return runner
 }
 
+// Run starts the watchers and queues of the runner
 func (mr *MirrorRunner) Run() error {
 	go mr.serviceWatcher.Run()
 	go mr.mirrorServiceWatcher.Run()
@@ -141,6 +142,7 @@ func (mr *MirrorRunner) Run() error {
 	return nil
 }
 
+// Stop stops watchers and runners
 func (mr *MirrorRunner) Stop() {
 	mr.serviceQueue.Stop()
 	mr.serviceWatcher.Stop()
@@ -150,6 +152,7 @@ func (mr *MirrorRunner) Stop() {
 	mr.mirrorEndpointsWatcher.Stop()
 }
 
+// Initialised returns true when the runner is successfully initialised
 func (mr *MirrorRunner) Initialised() bool {
 	return mr.initialised
 }
@@ -195,6 +198,8 @@ func (mr *MirrorRunner) getRemoteService(name, namespace string) (*v1.Service, e
 	return mr.serviceWatcher.Get(name, namespace)
 }
 
+// ServiceSync checks for stale mirrors (services) under the local namespace and
+// deletes them
 func (mr *MirrorRunner) ServiceSync() error {
 	storeSvcs, err := mr.serviceWatcher.List()
 	if err != nil {
@@ -238,6 +243,7 @@ func (mr *MirrorRunner) ServiceSync() error {
 	return nil
 }
 
+// ServiceEventHandler adds Service resource events to the respective queue
 func (mr *MirrorRunner) ServiceEventHandler(eventType watch.EventType, old *v1.Service, new *v1.Service) {
 	switch eventType {
 	case watch.Added:
@@ -339,6 +345,7 @@ func (mr *MirrorRunner) deleteEndpoints(name, namespace string) error {
 	)
 }
 
+// EndpointsEventHandler adds Endpoints resource events to the respective queue
 func (mr *MirrorRunner) EndpointsEventHandler(eventType watch.EventType, old *v1.Endpoints, new *v1.Endpoints) {
 	switch eventType {
 	case watch.Added:

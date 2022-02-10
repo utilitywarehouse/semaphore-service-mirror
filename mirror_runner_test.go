@@ -41,7 +41,7 @@ func TestAddService(t *testing.T) {
 	}
 	fakeWatchClient := fake.NewSimpleClientset(testSvc)
 
-	testRunner := NewMirrorRunner(
+	testRunner := newMirrorRunner(
 		fakeClient,
 		fakeWatchClient,
 		"test-runner",
@@ -71,7 +71,7 @@ func TestAddService(t *testing.T) {
 			Spec:      expectedSpec,
 		},
 	}
-	assertExpectedServices(t, ctx, expectedSvcs, fakeClient)
+	assertExpectedServices(ctx, t, expectedSvcs, fakeClient)
 }
 
 func TestAddHeadlessService(t *testing.T) {
@@ -96,7 +96,7 @@ func TestAddHeadlessService(t *testing.T) {
 	}
 	fakeWatchClient := fake.NewSimpleClientset(testSvc)
 
-	testRunner := NewMirrorRunner(
+	testRunner := newMirrorRunner(
 		fakeClient,
 		fakeWatchClient,
 		"test-runner",
@@ -125,7 +125,7 @@ func TestAddHeadlessService(t *testing.T) {
 			Spec:      expectedSpec,
 		},
 	}
-	assertExpectedServices(t, ctx, expectedSvcs, fakeClient)
+	assertExpectedServices(ctx, t, expectedSvcs, fakeClient)
 }
 
 func TestModifyService(t *testing.T) {
@@ -162,7 +162,7 @@ func TestModifyService(t *testing.T) {
 	}
 	fakeWatchClient := fake.NewSimpleClientset(testSvc)
 
-	testRunner := NewMirrorRunner(
+	testRunner := newMirrorRunner(
 		fakeClient,
 		fakeWatchClient,
 		"test-runner",
@@ -189,7 +189,7 @@ func TestModifyService(t *testing.T) {
 			Spec:      expectedSpec,
 		},
 	}
-	assertExpectedServices(t, ctx, expectedSvcs, fakeClient)
+	assertExpectedServices(ctx, t, expectedSvcs, fakeClient)
 }
 
 func TestModifyServiceNoChange(t *testing.T) {
@@ -225,7 +225,7 @@ func TestModifyServiceNoChange(t *testing.T) {
 	}
 	fakeWatchClient := fake.NewSimpleClientset(testSvc)
 
-	testRunner := NewMirrorRunner(
+	testRunner := newMirrorRunner(
 		fakeClient,
 		fakeWatchClient,
 		"test-runner",
@@ -303,7 +303,7 @@ func TestServiceSync(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	testRunner := NewMirrorRunner(
+	testRunner := newMirrorRunner(
 		fakeClient,
 		fakeWatchClient,
 		"test-runner",

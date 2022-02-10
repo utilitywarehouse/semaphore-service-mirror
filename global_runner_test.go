@@ -41,9 +41,9 @@ func TestAddSingleRemoteGlobalService(t *testing.T) {
 		},
 	}
 	fakeWatchClient := fake.NewSimpleClientset(testSvc)
-	testGlobalStore := newGlobalServiceStore(fakeClient)
+	testGlobalStore := newGlobalServiceStore()
 
-	testRunner := NewGlobalRunner(
+	testRunner := newGlobalRunner(
 		fakeClient,
 		fakeWatchClient,
 		"test-runner",
@@ -78,7 +78,7 @@ func TestAddSingleRemoteGlobalService(t *testing.T) {
 			},
 		},
 	}
-	assertExpectedGlobalServices(t, ctx, expectedSvcs, fakeClient)
+	assertExpectedGlobalServices(ctx, t, expectedSvcs, fakeClient)
 }
 
 func TestAddSingleRemoteGlobalHeadlessService(t *testing.T) {
@@ -102,9 +102,9 @@ func TestAddSingleRemoteGlobalHeadlessService(t *testing.T) {
 		},
 	}
 	fakeWatchClient := fake.NewSimpleClientset(testSvc)
-	testGlobalStore := newGlobalServiceStore(fakeClient)
+	testGlobalStore := newGlobalServiceStore()
 
-	testRunner := NewGlobalRunner(
+	testRunner := newGlobalRunner(
 		fakeClient,
 		fakeWatchClient,
 		"test-runner",
@@ -138,7 +138,7 @@ func TestAddSingleRemoteGlobalHeadlessService(t *testing.T) {
 			},
 		},
 	}
-	assertExpectedGlobalServices(t, ctx, expectedSvcs, fakeClient)
+	assertExpectedGlobalServices(ctx, t, expectedSvcs, fakeClient)
 }
 
 func TestAddGlobalServiceMultipleClusters(t *testing.T) {
@@ -176,9 +176,9 @@ func TestAddGlobalServiceMultipleClusters(t *testing.T) {
 	}
 	fakeWatchClientA := fake.NewSimpleClientset(testSvcA)
 	fakeWatchClientB := fake.NewSimpleClientset(testSvcB)
-	testGlobalStore := newGlobalServiceStore(fakeClient)
+	testGlobalStore := newGlobalServiceStore()
 
-	testRunnerA := NewGlobalRunner(
+	testRunnerA := newGlobalRunner(
 		fakeClient,
 		fakeWatchClientA,
 		"runnerA",
@@ -188,7 +188,7 @@ func TestAddGlobalServiceMultipleClusters(t *testing.T) {
 		testGlobalStore,
 		false,
 	)
-	testRunnerB := NewGlobalRunner(
+	testRunnerB := newGlobalRunner(
 		fakeClient,
 		fakeWatchClientB,
 		"runnerB",
@@ -221,12 +221,12 @@ func TestAddGlobalServiceMultipleClusters(t *testing.T) {
 	}}
 
 	testRunnerA.reconcileGlobalService("test-svc", "remote-ns")
-	assertExpectedGlobalServices(t, ctx, expectedSvcs, fakeClient)
+	assertExpectedGlobalServices(ctx, t, expectedSvcs, fakeClient)
 
 	// Reconciling the service from cluster B should only edit the respective label
 	testRunnerB.reconcileGlobalService("test-svc", "remote-ns")
 	expectedSvcs[0].Annotations[globalSvcClustersAnno] = "runnerA,runnerB"
-	assertExpectedGlobalServices(t, ctx, expectedSvcs, fakeClient)
+	assertExpectedGlobalServices(ctx, t, expectedSvcs, fakeClient)
 }
 
 func TestDeleteGlobalServiceMultipleClusters(t *testing.T) {
@@ -251,7 +251,7 @@ func TestDeleteGlobalServiceMultipleClusters(t *testing.T) {
 	existingSvc.Annotations[globalSvcClustersAnno] = "runnerA,runnerB"
 
 	fakeClient := fake.NewSimpleClientset(existingSvc)
-	testGlobalStore := newGlobalServiceStore(fakeClient)
+	testGlobalStore := newGlobalServiceStore()
 	// Add the existing service into global store from both clusters
 	labels := globalSvcLabels
 	annotations := globalSvcAnnotations
@@ -269,7 +269,7 @@ func TestDeleteGlobalServiceMultipleClusters(t *testing.T) {
 	fakeWatchClientA := fake.NewSimpleClientset()
 	fakeWatchClientB := fake.NewSimpleClientset()
 
-	testRunnerA := NewGlobalRunner(
+	testRunnerA := newGlobalRunner(
 		fakeClient,
 		fakeWatchClientA,
 		"runnerA",
@@ -279,7 +279,7 @@ func TestDeleteGlobalServiceMultipleClusters(t *testing.T) {
 		testGlobalStore,
 		false,
 	)
-	testRunnerB := NewGlobalRunner(
+	testRunnerB := newGlobalRunner(
 		fakeClient,
 		fakeWatchClientB,
 		"runnerB",
@@ -310,13 +310,13 @@ func TestDeleteGlobalServiceMultipleClusters(t *testing.T) {
 			kubeSeviceTopologyAwareHintsAnno: kubeSeviceTopologyAwareHintsAnnoVal,
 		},
 	}}
-	assertExpectedGlobalServices(t, ctx, expectedSvcs, fakeClient)
+	assertExpectedGlobalServices(ctx, t, expectedSvcs, fakeClient)
 	// Deleting the service from cluster A should only edit the respective label
 	testRunnerA.reconcileGlobalService("test-svc", "remote-ns")
 	expectedSvcs[0].Annotations[globalSvcClustersAnno] = "runnerB"
-	assertExpectedGlobalServices(t, ctx, expectedSvcs, fakeClient)
+	assertExpectedGlobalServices(ctx, t, expectedSvcs, fakeClient)
 
 	// Deleting the service from cluster B should delete the global service
 	testRunnerB.reconcileGlobalService("test-svc", "remote-ns")
-	assertExpectedServices(t, ctx, []TestSvc{}, fakeClient)
+	assertExpectedServices(ctx, t, []TestSvc{}, fakeClient)
 }

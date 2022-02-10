@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes/fake"
 )
 
 type testService struct {
@@ -16,14 +15,6 @@ type testService struct {
 	namespace string
 	clusterIP string
 	ports     []int32
-}
-
-func newTestGlobalServiceStore() GlobalServiceStore {
-	return GlobalServiceStore{
-		store:  make(map[string]*GlobalService),
-		client: fake.NewSimpleClientset(),
-	}
-
 }
 
 func createTestService(name, namespace, clusterIP string, ports []int32) *v1.Service {
@@ -44,8 +35,8 @@ func createTestService(name, namespace, clusterIP string, ports []int32) *v1.Ser
 	}
 }
 
-func createTestStore(t *testing.T, services []testService) GlobalServiceStore {
-	store := newTestGlobalServiceStore()
+func createTestStore(t *testing.T, services []testService) *GlobalServiceStore {
+	store := newGlobalServiceStore()
 	for _, s := range services {
 		svc := createTestService(s.name, s.namespace, s.clusterIP, s.ports)
 		_, err := store.AddOrUpdateClusterServiceTarget(svc, s.cluster)
@@ -89,7 +80,7 @@ func TestAddOrUpdateClusterServiceTarget_AddMultipleServices(t *testing.T) {
 }
 
 func TestAddOrUpdateClusterServiceTarget_HeadlessMisMatch(t *testing.T) {
-	store := newTestGlobalServiceStore()
+	store := newGlobalServiceStore()
 	svcA := createTestService("name", "namespace", "1.1.1.1", []int32{80})
 	clusterA := "a"
 	_, err := store.AddOrUpdateClusterServiceTarget(svcA, clusterA)

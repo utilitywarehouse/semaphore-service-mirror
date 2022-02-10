@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
 )
 
+// GlobalService represents a global multicluster service
 type GlobalService struct {
 	name        string
 	namespace   string
@@ -29,15 +29,14 @@ var (
 	globalSvcClustersAnno = "global-svc-clusters"
 )
 
+// GlobalServiceStore keeps a list of global services
 type GlobalServiceStore struct {
-	client kubernetes.Interface // Local cluster kube client
-	store  map[string]*GlobalService
+	store map[string]*GlobalService
 }
 
-func newGlobalServiceStore(client kubernetes.Interface) *GlobalServiceStore {
+func newGlobalServiceStore() *GlobalServiceStore {
 	return &GlobalServiceStore{
-		client: client,
-		store:  make(map[string]*GlobalService),
+		store: make(map[string]*GlobalService),
 	}
 }
 
@@ -94,6 +93,7 @@ func (gss *GlobalServiceStore) DeleteClusterServiceTarget(name, namespace, clust
 	return gsvc
 }
 
+// Get returns a service from the store or errors
 func (gss *GlobalServiceStore) Get(name, namespace string) (*GlobalService, error) {
 	gsvcName := generateGlobalServiceName(name, namespace)
 	gsvc, ok := gss.store[gsvcName]
@@ -103,6 +103,7 @@ func (gss *GlobalServiceStore) Get(name, namespace string) (*GlobalService, erro
 	return gsvc, nil
 }
 
+// Len returns the length of the list of services in store
 func (gss *GlobalServiceStore) Len() int {
 	return len(gss.store)
 }

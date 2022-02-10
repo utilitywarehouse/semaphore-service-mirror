@@ -78,7 +78,7 @@ func main() {
 		usage()
 	}
 
-	gst := newGlobalServiceStore(homeClient)
+	gst := newGlobalServiceStore()
 	gr := makeGlobalRunner(homeClient, homeClient, config.LocalCluster.Name, config.Global, gst, true)
 	go func() { backoff.Retry(gr.Run, "start runner") }()
 	runners := []Runner{gr}
@@ -144,7 +144,7 @@ func makeRemoteKubeClientFromConfig(remote *remoteClusterConfig) (*kubernetes.Cl
 }
 
 func makeMirrorRunner(homeClient, remoteClient *kubernetes.Clientset, remote *remoteClusterConfig, global globalConfig) *MirrorRunner {
-	return NewMirrorRunner(
+	return newMirrorRunner(
 		homeClient,
 		remoteClient,
 		remote.Name,
@@ -159,7 +159,7 @@ func makeMirrorRunner(homeClient, remoteClient *kubernetes.Clientset, remote *re
 }
 
 func makeGlobalRunner(homeClient, remoteClient *kubernetes.Clientset, name string, global globalConfig, gst *GlobalServiceStore, localCluster bool) *GlobalRunner {
-	return NewGlobalRunner(
+	return newGlobalRunner(
 		homeClient,
 		remoteClient,
 		name,

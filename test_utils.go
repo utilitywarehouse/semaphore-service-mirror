@@ -10,7 +10,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 )
 
-// To make expected types
+// TestSvc is a struct to make expected types for assertions
 type TestSvc struct {
 	Name        string
 	Namespace   string
@@ -19,13 +19,14 @@ type TestSvc struct {
 	Annotations map[string]string
 }
 
+// TestSpec represents the test service spec
 type TestSpec struct {
 	Ports     []v1.ServicePort
 	Selector  map[string]string
 	ClusterIP string
 }
 
-func assertExpectedServices(t *testing.T, ctx context.Context, expectedSvcs []TestSvc, fakeClient *fake.Clientset) {
+func assertExpectedServices(ctx context.Context, t *testing.T, expectedSvcs []TestSvc, fakeClient *fake.Clientset) {
 	svcs, err := fakeClient.CoreV1().Services("").List(
 		ctx,
 		metav1.ListOptions{},
@@ -44,7 +45,7 @@ func assertExpectedServices(t *testing.T, ctx context.Context, expectedSvcs []Te
 }
 
 // assertExpectediGlobalServices will also checck global service labels and annotations
-func assertExpectedGlobalServices(t *testing.T, ctx context.Context, expectedSvcs []TestSvc, fakeClient *fake.Clientset) {
+func assertExpectedGlobalServices(ctx context.Context, t *testing.T, expectedSvcs []TestSvc, fakeClient *fake.Clientset) {
 	svcs, err := fakeClient.CoreV1().Services("").List(
 		ctx,
 		metav1.ListOptions{},
@@ -57,5 +58,5 @@ func assertExpectedGlobalServices(t *testing.T, ctx context.Context, expectedSvc
 		assert.Equal(t, expected.Annotations[kubeSeviceTopologyAwareHintsAnno], svcs.Items[i].Annotations[kubeSeviceTopologyAwareHintsAnno])
 		assert.Equal(t, expected.Annotations[globalSvcClustersAnno], svcs.Items[i].Annotations[globalSvcClustersAnno])
 	}
-	assertExpectedServices(t, ctx, expectedSvcs, fakeClient)
+	assertExpectedServices(ctx, t, expectedSvcs, fakeClient)
 }

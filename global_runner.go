@@ -17,6 +17,8 @@ import (
 	"github.com/utilitywarehouse/semaphore-service-mirror/log"
 )
 
+// GlobalRunner watches a cluster for global services and mirrors the found
+// configuration under a local namespace
 type GlobalRunner struct {
 	ctx                  context.Context
 	client               kubernetes.Interface
@@ -33,7 +35,7 @@ type GlobalRunner struct {
 	local                bool // Flag to identify if the runner is running against a local or remote cluster
 }
 
-func NewGlobalRunner(client, watchClient kubernetes.Interface, name, namespace, labelselector string, resyncPeriod time.Duration, gst *GlobalServiceStore, local bool) *GlobalRunner {
+func newGlobalRunner(client, watchClient kubernetes.Interface, name, namespace, labelselector string, resyncPeriod time.Duration, gst *GlobalServiceStore, local bool) *GlobalRunner {
 	runner := &GlobalRunner{
 		ctx:                context.Background(),
 		client:             client,
@@ -73,6 +75,7 @@ func NewGlobalRunner(client, watchClient kubernetes.Interface, name, namespace, 
 	return runner
 }
 
+// Run starts the watchers and queues of the runner
 func (gr *GlobalRunner) Run() error {
 	go gr.serviceWatcher.Run()
 	// At this point the runner should be considered initialised and live.
@@ -90,6 +93,7 @@ func (gr *GlobalRunner) Run() error {
 	return nil
 }
 
+// Stop stops watchers and runners
 func (gr *GlobalRunner) Stop() {
 	gr.serviceQueue.Stop()
 	gr.serviceWatcher.Stop()
@@ -97,6 +101,7 @@ func (gr *GlobalRunner) Stop() {
 	gr.endpointSliceWatcher.Stop()
 }
 
+// Initialised returns true when the runner is successfully initialised
 func (gr *GlobalRunner) Initialised() bool {
 	return gr.initialised
 }
@@ -166,6 +171,7 @@ func (gr *GlobalRunner) updateGlobalService(service *v1.Service, ports []v1.Serv
 	return kube.UpdateService(gr.ctx, gr.client, service, ports)
 }
 
+// ServiceEventHandler adds Service resource events to the respective queue
 func (gr *GlobalRunner) ServiceEventHandler(eventType watch.EventType, old *v1.Service, new *v1.Service) {
 	switch eventType {
 	case watch.Added:
@@ -303,6 +309,7 @@ func (gr *GlobalRunner) reconcileEndpointSlice(name, namespace string) error {
 	return nil
 }
 
+// EndpointSliceEventHandler adds EndpointSlice resource events to the respective queue
 func (gr *GlobalRunner) EndpointSliceEventHandler(eventType watch.EventType, old *discoveryv1.EndpointSlice, new *discoveryv1.EndpointSlice) {
 	switch eventType {
 	case watch.Added:

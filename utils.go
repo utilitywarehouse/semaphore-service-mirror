@@ -14,6 +14,8 @@ const (
 )
 
 var (
+	// DefaultLocalEndpointZones holds the configured availability zones for
+	// the local cluster
 	DefaultLocalEndpointZones []discoveryv1.ForZone
 )
 
