@@ -18,11 +18,12 @@ import (
 )
 
 var (
-	flagKubeConfigPath  = flag.String("kube-config", getEnv("SSM_KUBE_CONFIG", ""), "Path of a kube config file, if not provided the app will try to get in cluster config")
-	flagLogLevel        = flag.String("log-level", getEnv("SSM_LOG_LEVEL", "info"), "Log level")
-	flagMirrorNamespace = flag.String("mirror-ns", getEnv("SSM_MIRROR_NS", ""), "The namespace to create dummy mirror services in")
-	flagLabelSelector   = flag.String("label-selector", getEnv("SSM_LABEL_SELECTOR", ""), "Label of services and endpoints to watch and mirror")
-	flagSSMConfig       = flag.String("config", getEnv("SSM_CONFIG", ""), "(required)Path to the json config file")
+	flagGlobalSvcLabelSelector = flag.String("global-svc-label-selector", getEnv("SSM_GLOBAL_SVC_LABEL_SELECTOR", ""), "Label of services and endpoints to watch and mirror")
+	flagKubeConfigPath         = flag.String("kube-config", getEnv("SSM_KUBE_CONFIG", ""), "Path of a kube config file, if not provided the app will try to get in cluster config")
+	flagLogLevel               = flag.String("log-level", getEnv("SSM_LOG_LEVEL", "info"), "Log level")
+	flagMirrorNamespace        = flag.String("mirror-ns", getEnv("SSM_MIRROR_NS", ""), "The namespace to create dummy mirror services in")
+	flagMirrorSvcLabelSelector = flag.String("mirror-svc-label-selector", getEnv("SSM_MIRROR_SVC_LABEL_SELECTOR", ""), "Label of services and endpoints to watch and mirror")
+	flagSSMConfig              = flag.String("config", getEnv("SSM_CONFIG", ""), "(required)Path to the json config file")
 
 	bearerRe = regexp.MustCompile(`[A-Z|a-z0-9\-\._~\+\/]+=*`)
 )
@@ -56,7 +57,8 @@ func main() {
 	}
 	config, err := parseConfig(
 		fileContent,
-		*flagLabelSelector,
+		*flagGlobalSvcLabelSelector,
+		*flagMirrorSvcLabelSelector,
 		*flagMirrorNamespace,
 	)
 	if err != nil {
@@ -148,7 +150,7 @@ func makeMirrorRunner(homeClient, remoteClient *kubernetes.Clientset, remote *re
 		remote.Name,
 		global.MirrorNamespace,
 		remote.ServicePrefix,
-		global.LabelSelector,
+		global.MirrorSvcLabelSelector,
 		// Resync will trigger an onUpdate event for everything that is
 		// stored in cache.
 		remote.ResyncPeriod.Duration,
@@ -162,7 +164,7 @@ func makeGlobalRunner(homeClient, remoteClient *kubernetes.Clientset, name strin
 		remoteClient,
 		name,
 		global.MirrorNamespace,
-		global.LabelSelector,
+		global.GlobalSvcLabelSelector,
 		// TODO: Need to specify resync period?
 		0,
 		gst,

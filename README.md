@@ -39,7 +39,8 @@ of the configuration keys by scope:
 ### Global
 Contains configuration globally shared by all runners.
 
-* `labelSelector`: Label used to select services to mirror
+* `globalSvcLabelSelector`: Labels used to select global services
+* `mirrorSvcLabelSelector`: Label used to select services to mirror
 * `mirrorNamespace`: Namespace used to locate/place mirrored objects
 * `serviceSync`: Whether to sync services on startup and delete records that
   cannot be located based on the label selector. Defaults to false
@@ -80,7 +81,8 @@ cluster.
 ```
 {
   "global": {
-    "labelSelector": "mirror.semaphore.uw.io=true",
+    "globalSvcLabelSelector": "mirror.semaphore.uw.io/global-service=true",
+    "mirrorSvcLabelSelector": "mirror.semaphore.uw.io/mirror-service=true",
     "mirrorNamespace": "semaphore",
     "serviceSync": true
   },
@@ -169,12 +171,12 @@ with a prefix flag that matches the target cluster name.
 
 ## Global Services
 
-For every mirrored service, the operator is also going to create a global
-service. The global service will gather endpoints from multiple remote clusters
-that live under the "same" namespace and name, under a single local service
-with endpoints in multiple clusters. For that purpose, it will create a single
-ClusterIP service and mirror endpointslices from remote clusters to target the
-new "global" service.
+The operator is also watching services based on a separate label, in order to
+create global services. A global service will gather endpoints from multiple
+remote clusters that live under the "same" namespace and name, into a single 
+ocal service with endpoints in multiple clusters. For that purpose, it will
+create a single ClusterIP (or headless) service and mirror endpointslices from
+remote clusters to target the new "global" service.
 
 The format of the name used for the global service is:
 `gl-<namespace>-73736d-<name>`.
@@ -187,7 +189,6 @@ with a corresponding list of endpoints: [eA, eB1, eB2].
 
 * Global services will include endpoints from the local cluster as well,
   provided they are using the mirror label.
-* No new label is needed in order to use the global services.
 * Global services will try to utilise Kubernetes topology aware hints to route
   to local endpoints first.
 
