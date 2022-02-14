@@ -43,8 +43,12 @@ func newGlobalServiceStore() *GlobalServiceStore {
 // AddOrUpdateClusterServiceTarget will append a cluster to the GlobalService
 // clusters list. In case there is no global service in the store, it creates
 // the GlobalService.
-func (gss *GlobalServiceStore) AddOrUpdateClusterServiceTarget(svc *v1.Service, cluster string) (*GlobalService, error) {
+func (gss *GlobalServiceStore) AddOrUpdateClusterServiceTarget(svc *v1.Service, cluster string, topologyAware bool) (*GlobalService, error) {
 	gsvcName := generateGlobalServiceName(svc.Name, svc.Namespace)
+	gsvcAnnotations := map[string]string{}
+	if topologyAware {
+		gsvcAnnotations[kubeSeviceTopologyAwareHintsAnno] = kubeSeviceTopologyAwareHintsAnnoVal
+	}
 	gsvc, ok := gss.store[gsvcName]
 	// Add new service in the store if it doesn't exist
 	if !ok {
@@ -54,7 +58,7 @@ func (gss *GlobalServiceStore) AddOrUpdateClusterServiceTarget(svc *v1.Service, 
 			ports:       svc.Spec.Ports,
 			headless:    isHeadless(svc),
 			labels:      globalSvcLabels,
-			annotations: globalSvcAnnotations,
+			annotations: gsvcAnnotations,
 			clusters:    []string{cluster},
 		}
 		gsvc.annotations[globalSvcClustersAnno] = fmt.Sprintf("%s", cluster)
@@ -68,7 +72,9 @@ func (gss *GlobalServiceStore) AddOrUpdateClusterServiceTarget(svc *v1.Service, 
 	if _, found := inSlice(gsvc.clusters, cluster); !found {
 		gsvc.clusters = append(gsvc.clusters, cluster)
 	}
-	gsvc.annotations[globalSvcClustersAnno] = strings.Join(gsvc.clusters, ",")
+	gsvcAnnotations[globalSvcClustersAnno] = strings.Join(gsvc.clusters, ",")
+	gsvc.annotations = gsvcAnnotations
+	gsvc.ports = svc.Spec.Ports
 	return gsvc, nil
 }
 

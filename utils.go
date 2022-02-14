@@ -5,6 +5,11 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/utilitywarehouse/semaphore-service-mirror/log"
 )
 
 const (
@@ -69,4 +74,13 @@ func isHeadless(svc *v1.Service) bool {
 		return true
 	}
 	return false
+}
+
+func matchSelector(selector labels.Selector, obj runtime.Object) bool {
+	metadata, err := meta.Accessor(obj)
+	if err != nil {
+		log.Logger.Error("creating object accessor", "err", err)
+		return false
+	}
+	return selector.Matches(labels.Set(metadata.GetLabels()))
 }

@@ -9,6 +9,7 @@ import (
 	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -31,11 +32,12 @@ type GlobalRunner struct {
 	namespace            string
 	labelselector        string
 	sync                 bool
-	initialised          bool // Flag to turn on after the successful initialisation of the runner.
-	local                bool // Flag to identify if the runner is running against a local or remote cluster
+	initialised          bool            // Flag to turn on after the successful initialisation of the runner.
+	local                bool            // Flag to identify if the runner is running against a local or remote cluster
+	topologyLabel        labels.Selector // Label to identify services that want to use topology hints
 }
 
-func newGlobalRunner(client, watchClient kubernetes.Interface, name, namespace, labelselector string, resyncPeriod time.Duration, gst *GlobalServiceStore, local bool) *GlobalRunner {
+func newGlobalRunner(client, watchClient kubernetes.Interface, name, namespace, labelselector string, resyncPeriod time.Duration, gst *GlobalServiceStore, local bool, tl labels.Selector) *GlobalRunner {
 	runner := &GlobalRunner{
 		ctx:                context.Background(),
 		client:             client,
@@ -44,6 +46,7 @@ func newGlobalRunner(client, watchClient kubernetes.Interface, name, namespace, 
 		globalServiceStore: gst,
 		initialised:        false,
 		local:              local,
+		topologyLabel:      tl,
 	}
 	runner.serviceQueue = newQueue(fmt.Sprintf("%s-gl-service", name), runner.reconcileGlobalService)
 	runner.endpointSliceQueue = newQueue(fmt.Sprintf("%s-endpointslice", name), runner.reconcileEndpointSlice)
@@ -130,7 +133,9 @@ func (gr *GlobalRunner) reconcileGlobalService(name, namespace string) error {
 	}
 	// If the remote service wasn't deleted, try to add it to the store
 	if remoteSvc != nil {
-		_, err := gr.globalServiceStore.AddOrUpdateClusterServiceTarget(remoteSvc, gr.name)
+		topologyAwareSvc := matchSelector(gr.topologyLabel, remoteSvc)
+		log.Logger.Info("Matching selector", "selector", topologyAwareSvc)
+		_, err := gr.globalServiceStore.AddOrUpdateClusterServiceTarget(remoteSvc, gr.name, topologyAwareSvc)
 		if err != nil {
 			return fmt.Errorf("failed to create/update service: %v", err)
 		}
@@ -164,10 +169,7 @@ func (gr *GlobalRunner) getRemoteService(name, namespace string) (*v1.Service, e
 
 // updateGlobalService is UpdateService that will also update the annotations to reflect clusters
 func (gr *GlobalRunner) updateGlobalService(service *v1.Service, ports []v1.ServicePort, annotations map[string]string) (*v1.Service, error) {
-	for k, v := range annotations {
-		service.ObjectMeta.Annotations[k] = v
-	}
-
+	service.ObjectMeta.Annotations = annotations
 	return kube.UpdateService(gr.ctx, gr.client, service, ports)
 }
 

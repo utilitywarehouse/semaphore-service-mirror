@@ -40,6 +40,8 @@ of the configuration keys by scope:
 Contains configuration globally shared by all runners.
 
 * `globalSvcLabelSelector`: Labels used to select global services
+* `globalSvcTopologyLabel`: Labels used to instruct controller to try utilising
+   Kubernetes topology aware hints for global services
 * `mirrorSvcLabelSelector`: Label used to select services to mirror
 * `mirrorNamespace`: Namespace used to locate/place mirrored objects
 * `serviceSync`: Whether to sync services on startup and delete records that
@@ -82,6 +84,7 @@ cluster.
 {
   "global": {
     "globalSvcLabelSelector": "mirror.semaphore.uw.io/global-service=true",
+    "globalSvcTopologyLabel": "mirror.semaphore.uw.io/global-service-topology=true",
     "mirrorSvcLabelSelector": "mirror.semaphore.uw.io/mirror-service=true",
     "mirrorNamespace": "semaphore",
     "serviceSync": true
@@ -218,13 +221,29 @@ cluster.global {
 
 ### Topology routing
 
-It is usually preferable to route to endpoints that live closer when addressing
-global services. For that purpose the operator will annotate all created global
-services with `service.kubernetes.io/topology-aware-hints=auto` and try to add
-hints on all the mirrored endpoints. In order to be able to use meaningful
-hints, the operator reads the local configuration `zones` field and uses the
-list of zones defined there as hints for local endpoints. If this is not set, a
-dummy value will be used. The operator also uses the dummy "remote" zone value
-as a hint for endpoits mirrored from remote clusters, to make sure that no
-routing decisions will be made on those and kube proxy will not complain about
-missing hints at the same time.
+In some cases, it is preferable to route to endpoints which live closer to the
+caller when addressing global services (first hit available endpoints in the
+same cluster). For that purpose, one can use a label to instruct the controller
+to set `service.kubernetes.io/topology-aware-hints=auto` label in the generated
+global service and instruct Kubernetes to use topology hints for routing traffic
+to the service. In order for the hints to be effective, the operator reads the
+local configuration `zones` field and uses the list of zones defined there as
+hints for local endpoints. If this is not set, a dummy value will be used and
+topology aware routing will not be feasible. The operator also uses the dummy
+"remote" zone value as a hint for endpoits mirrored from remote clusters, to
+make sure that no routing decisions will be made on those and kube-proxy will
+not complain about missing hints.
+The label to enable the above is configurable via `globalSvcTopologyLabel` field
+in the global configuration.
+
+### Fungible values
+
+Since service endpoints that will be involved in a global service come from
+multiple services in different clusters, based on the service name and
+namespace, certain parameters need to match across all those service
+definitions. In particular, service ports and topology labels values are
+fungible and if their values differ between definitions of services that feed
+endpoints to the same global service, there will be a race between services to
+force their attributes to the global service. For a predictable behaviour, make
+sure that ports match between services and either all or none set the topology
+label.
