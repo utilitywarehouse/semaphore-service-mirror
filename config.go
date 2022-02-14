@@ -46,11 +46,11 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 
 // globalConfig will keep configuration that applies globally on the operator
 type globalConfig struct {
-	GlobalSvcLabelSelector string `json:"globalSvcLabelSelector"` // Label used to select global services to mirror
-	GlobalSvcTopologyLabel string `json:"globalSvcTopologyLabel"` // Label used to enable topology aware hints for global services
-	MirrorSvcLabelSelector string `json:"mirrorSvcLabelSelector"` // Label used to select remote services to mirror
-	MirrorNamespace        string `json:"mirrorNamespace"`        // Local namespace to mirror remote services
-	ServiceSync            bool   `json:"serviceSync"`            // sync services on startup
+	GlobalSvcLabelSelector        string `json:"globalSvcLabelSelector"`   // Label used to select global services to mirror
+	GlobalSvcRoutingStrategyLabel string `json:"globalSvcRoutingStrategy"` // Label used to enable topology aware hints for global services
+	MirrorSvcLabelSelector        string `json:"mirrorSvcLabelSelector"`   // Label used to select remote services to mirror
+	MirrorNamespace               string `json:"mirrorNamespace"`          // Local namespace to mirror remote services
+	ServiceSync                   bool   `json:"serviceSync"`              // sync services on startup
 }
 
 type localClusterConfig struct {
@@ -76,7 +76,7 @@ type Config struct {
 	RemoteClusters []*remoteClusterConfig `json:"remoteClusters"`
 }
 
-func parseConfig(rawConfig []byte, flagGlobalSvcLabelSelector, flagGlobalSvcTopologyLabel, flagMirrorSvcLabelSelector, flagMirrorNamespace string) (*Config, error) {
+func parseConfig(rawConfig []byte, flagGlobalSvcLabelSelector, flagGlobalSvcRoutingStrategyLabel, flagMirrorSvcLabelSelector, flagMirrorNamespace string) (*Config, error) {
 	conf := &Config{}
 	if err := json.Unmarshal(rawConfig, conf); err != nil {
 		return nil, fmt.Errorf("error unmarshalling config: %v", err)
@@ -94,10 +94,10 @@ func parseConfig(rawConfig []byte, flagGlobalSvcLabelSelector, flagGlobalSvcTopo
 	if conf.Global.GlobalSvcLabelSelector == "" {
 		return nil, fmt.Errorf("Label selector for global services should be specified either via global json config, env vars or flag")
 	}
-	if flagGlobalSvcTopologyLabel != "" {
-		conf.Global.GlobalSvcTopologyLabel = flagGlobalSvcTopologyLabel
+	if flagGlobalSvcRoutingStrategyLabel != "" {
+		conf.Global.GlobalSvcRoutingStrategyLabel = flagGlobalSvcRoutingStrategyLabel
 	}
-	if conf.Global.GlobalSvcTopologyLabel == "" {
+	if conf.Global.GlobalSvcRoutingStrategyLabel == "" {
 		return nil, fmt.Errorf("Label to enable topology aware hints for global services should be specified either via global json config, env vars or flag")
 	}
 	if flagMirrorNamespace != "" {

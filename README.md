@@ -40,8 +40,9 @@ of the configuration keys by scope:
 Contains configuration globally shared by all runners.
 
 * `globalSvcLabelSelector`: Labels used to select global services
-* `globalSvcTopologyLabel`: Labels used to instruct controller to try utilising
-   Kubernetes topology aware hints for global services
+* `globalSvcRoutingStrategyLabel`: Labels used to instruct controller to try
+   utilising Kubernetes topology aware hints to select local cluster targets
+   first when routing global services.
 * `mirrorSvcLabelSelector`: Label used to select services to mirror
 * `mirrorNamespace`: Namespace used to locate/place mirrored objects
 * `serviceSync`: Whether to sync services on startup and delete records that
@@ -84,7 +85,7 @@ cluster.
 {
   "global": {
     "globalSvcLabelSelector": "mirror.semaphore.uw.io/global-service=true",
-    "globalSvcTopologyLabel": "mirror.semaphore.uw.io/global-service-topology=true",
+    "globalSvcRoutingStrategyLabel": "mirror.semaphore.uw.io/global-service-routing-strategy=local-first",
     "mirrorSvcLabelSelector": "mirror.semaphore.uw.io/mirror-service=true",
     "mirrorNamespace": "semaphore",
     "serviceSync": true

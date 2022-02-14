@@ -43,10 +43,10 @@ func newGlobalServiceStore() *GlobalServiceStore {
 // AddOrUpdateClusterServiceTarget will append a cluster to the GlobalService
 // clusters list. In case there is no global service in the store, it creates
 // the GlobalService.
-func (gss *GlobalServiceStore) AddOrUpdateClusterServiceTarget(svc *v1.Service, cluster string, topologyAware bool) (*GlobalService, error) {
+func (gss *GlobalServiceStore) AddOrUpdateClusterServiceTarget(svc *v1.Service, cluster string, topologyAwareHints bool) (*GlobalService, error) {
 	gsvcName := generateGlobalServiceName(svc.Name, svc.Namespace)
 	gsvcAnnotations := map[string]string{}
-	if topologyAware {
+	if topologyAwareHints {
 		gsvcAnnotations[kubeSeviceTopologyAwareHintsAnno] = kubeSeviceTopologyAwareHintsAnnoVal
 	}
 	gsvc, ok := gss.store[gsvcName]

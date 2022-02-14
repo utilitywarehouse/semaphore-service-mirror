@@ -101,7 +101,7 @@ func TestConfig(t *testing.T) {
 	config, err := parseConfig(rawFullConfig, testFlagGlobalSvcLabelSelector, testFlagGlobalSvcTopologyLabel, testFlagMirrorSvcLabelSelector, testFlagMirrorNamespace)
 	assert.Equal(t, nil, err)
 	assert.Equal(t, testFlagGlobalSvcLabelSelector, config.Global.GlobalSvcLabelSelector)
-	assert.Equal(t, testFlagGlobalSvcTopologyLabel, config.Global.GlobalSvcTopologyLabel)
+	assert.Equal(t, testFlagGlobalSvcTopologyLabel, config.Global.GlobalSvcRoutingStrategyLabel)
 	assert.Equal(t, testFlagMirrorSvcLabelSelector, config.Global.MirrorSvcLabelSelector)
 	assert.Equal(t, testFlagMirrorNamespace, config.Global.MirrorNamespace)
 	assert.Equal(t, true, config.Global.ServiceSync)

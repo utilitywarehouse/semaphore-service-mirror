@@ -18,13 +18,13 @@ import (
 )
 
 var (
-	flagGlobalSvcLabelSelector = flag.String("global-svc-label-selector", getEnv("SSM_GLOBAL_SVC_LABEL_SELECTOR", ""), "Label to mark watched services as global services")
-	flagGlobalSvcTopologyLabel = flag.String("global-svc-topology-label", getEnv("SSM_GLOBAL_SVC_TOPOLOGY_LABEL", ""), "Label to instruct whether to try topology aware routing for global services")
-	flagKubeConfigPath         = flag.String("kube-config", getEnv("SSM_KUBE_CONFIG", ""), "Path of a kube config file, if not provided the app will try to get in cluster config")
-	flagLogLevel               = flag.String("log-level", getEnv("SSM_LOG_LEVEL", "info"), "Log level")
-	flagMirrorNamespace        = flag.String("mirror-ns", getEnv("SSM_MIRROR_NS", ""), "The namespace to create dummy mirror services in")
-	flagMirrorSvcLabelSelector = flag.String("mirror-svc-label-selector", getEnv("SSM_MIRROR_SVC_LABEL_SELECTOR", ""), "Label of services and endpoints to watch and mirror")
-	flagSSMConfig              = flag.String("config", getEnv("SSM_CONFIG", ""), "(required)Path to the json config file")
+	flagGlobalSvcLabelSelector        = flag.String("global-svc-label-selector", getEnv("SSM_GLOBAL_SVC_LABEL_SELECTOR", ""), "Label to mark watched services as global services")
+	flagGlobalSvcRoutingStrategyLabel = flag.String("global-svc-routing-strategy-label", getEnv("SSM_GLOBAL_SVC_TOPOLOGY_LABEL", ""), "Label to instruct whether to try topology aware routing for global services")
+	flagKubeConfigPath                = flag.String("kube-config", getEnv("SSM_KUBE_CONFIG", ""), "Path of a kube config file, if not provided the app will try to get in cluster config")
+	flagLogLevel                      = flag.String("log-level", getEnv("SSM_LOG_LEVEL", "info"), "Log level")
+	flagMirrorNamespace               = flag.String("mirror-ns", getEnv("SSM_MIRROR_NS", ""), "The namespace to create dummy mirror services in")
+	flagMirrorSvcLabelSelector        = flag.String("mirror-svc-label-selector", getEnv("SSM_MIRROR_SVC_LABEL_SELECTOR", ""), "Label of services and endpoints to watch and mirror")
+	flagSSMConfig                     = flag.String("config", getEnv("SSM_CONFIG", ""), "(required)Path to the json config file")
 
 	bearerRe = regexp.MustCompile(`[A-Z|a-z0-9\-\._~\+\/]+=*`)
 )
@@ -59,7 +59,7 @@ func main() {
 	config, err := parseConfig(
 		fileContent,
 		*flagGlobalSvcLabelSelector,
-		*flagGlobalSvcTopologyLabel,
+		*flagGlobalSvcRoutingStrategyLabel,
 		*flagMirrorSvcLabelSelector,
 		*flagMirrorNamespace,
 	)
@@ -69,8 +69,8 @@ func main() {
 	}
 	// set DefaultLocalEndpointZones value for topology aware routing
 	setLocalEndpointZones(config.LocalCluster.Zones)
-	// parse topology aware hints labels
-	topologyLabel, err := labels.Parse(config.Global.GlobalSvcTopologyLabel)
+	// parse strategy label for setting topology aware hints.
+	routingStrategyLabel, err := labels.Parse(config.Global.GlobalSvcRoutingStrategyLabel)
 	if err != nil {
 		log.Logger.Error(
 			"Cannot parse the configured topology label for global services",
@@ -90,7 +90,7 @@ func main() {
 	}
 
 	gst := newGlobalServiceStore()
-	gr := makeGlobalRunner(homeClient, homeClient, config.LocalCluster.Name, config.Global, gst, true, topologyLabel)
+	gr := makeGlobalRunner(homeClient, homeClient, config.LocalCluster.Name, config.Global, gst, true, routingStrategyLabel)
 	go func() { backoff.Retry(gr.Run, "start runner") }()
 	runners := []Runner{gr}
 	for _, remote := range config.RemoteClusters {
@@ -102,7 +102,7 @@ func main() {
 		mr := makeMirrorRunner(homeClient, remoteClient, remote, config.Global)
 		runners = append(runners, mr)
 		go func() { backoff.Retry(mr.Run, "start mirror runner") }()
-		gr := makeGlobalRunner(homeClient, remoteClient, remote.Name, config.Global, gst, false, topologyLabel)
+		gr := makeGlobalRunner(homeClient, remoteClient, remote.Name, config.Global, gst, false, routingStrategyLabel)
 		runners = append(runners, gr)
 		go func() { backoff.Retry(gr.Run, "start mirror runner") }()
 	}
@@ -169,7 +169,7 @@ func makeMirrorRunner(homeClient, remoteClient *kubernetes.Clientset, remote *re
 	)
 }
 
-func makeGlobalRunner(homeClient, remoteClient *kubernetes.Clientset, name string, global globalConfig, gst *GlobalServiceStore, localCluster bool, topologyLabel labels.Selector) *GlobalRunner {
+func makeGlobalRunner(homeClient, remoteClient *kubernetes.Clientset, name string, global globalConfig, gst *GlobalServiceStore, localCluster bool, routingStrategyLabel labels.Selector) *GlobalRunner {
 	return newGlobalRunner(
 		homeClient,
 		remoteClient,
@@ -180,6 +180,6 @@ func makeGlobalRunner(homeClient, remoteClient *kubernetes.Clientset, name strin
 		0,
 		gst,
 		localCluster,
-		topologyLabel,
+		routingStrategyLabel,
 	)
 }

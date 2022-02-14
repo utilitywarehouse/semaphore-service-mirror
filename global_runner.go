@@ -34,19 +34,19 @@ type GlobalRunner struct {
 	sync                 bool
 	initialised          bool            // Flag to turn on after the successful initialisation of the runner.
 	local                bool            // Flag to identify if the runner is running against a local or remote cluster
-	topologyLabel        labels.Selector // Label to identify services that want to use topology hints
+	routingStrategyLabel labels.Selector // Label to identify services that want to utilise topology hints
 }
 
-func newGlobalRunner(client, watchClient kubernetes.Interface, name, namespace, labelselector string, resyncPeriod time.Duration, gst *GlobalServiceStore, local bool, tl labels.Selector) *GlobalRunner {
+func newGlobalRunner(client, watchClient kubernetes.Interface, name, namespace, labelselector string, resyncPeriod time.Duration, gst *GlobalServiceStore, local bool, rsl labels.Selector) *GlobalRunner {
 	runner := &GlobalRunner{
-		ctx:                context.Background(),
-		client:             client,
-		name:               name,
-		namespace:          namespace,
-		globalServiceStore: gst,
-		initialised:        false,
-		local:              local,
-		topologyLabel:      tl,
+		ctx:                  context.Background(),
+		client:               client,
+		name:                 name,
+		namespace:            namespace,
+		globalServiceStore:   gst,
+		initialised:          false,
+		local:                local,
+		routingStrategyLabel: rsl,
 	}
 	runner.serviceQueue = newQueue(fmt.Sprintf("%s-gl-service", name), runner.reconcileGlobalService)
 	runner.endpointSliceQueue = newQueue(fmt.Sprintf("%s-endpointslice", name), runner.reconcileEndpointSlice)
@@ -133,9 +133,8 @@ func (gr *GlobalRunner) reconcileGlobalService(name, namespace string) error {
 	}
 	// If the remote service wasn't deleted, try to add it to the store
 	if remoteSvc != nil {
-		topologyAwareSvc := matchSelector(gr.topologyLabel, remoteSvc)
-		log.Logger.Info("Matching selector", "selector", topologyAwareSvc)
-		_, err := gr.globalServiceStore.AddOrUpdateClusterServiceTarget(remoteSvc, gr.name, topologyAwareSvc)
+		setServiceTopologyHints := matchSelector(gr.routingStrategyLabel, remoteSvc)
+		_, err := gr.globalServiceStore.AddOrUpdateClusterServiceTarget(remoteSvc, gr.name, setServiceTopologyHints)
 		if err != nil {
 			return fmt.Errorf("failed to create/update service: %v", err)
 		}

@@ -15,11 +15,11 @@ import (
 )
 
 var (
-	testGlobalLabels                = map[string]string{"global-svc": "true"}
-	testGlobalSvcLabel              = map[string]string{"mirror.semaphore.uw.io/global-service": "true"}
-	testGlobalSvcLabelString        = "mirror.semaphore.uw.io/global-service=true"
-	testGlobalTopologySelectorLabel = "mirror.semaphore.uw.io/global-service-topology=true"
-	testServiceSelector             = map[string]string{"selector": "x"}
+	testGlobalLabels               = map[string]string{"global-svc": "true"}
+	testGlobalSvcLabel             = map[string]string{"mirror.semaphore.uw.io/global-service": "true"}
+	testGlobalSvcLabelString       = "mirror.semaphore.uw.io/global-service=true"
+	testGlobalRoutingStrategyLabel = "mirror.semaphore.uw.io/global-service-routing-strategy=local-first"
+	testServiceSelector            = map[string]string{"selector": "x"}
 )
 
 func TestAddSingleRemoteGlobalService(t *testing.T) {
@@ -45,7 +45,7 @@ func TestAddSingleRemoteGlobalService(t *testing.T) {
 	fakeWatchClient := fake.NewSimpleClientset(testSvc)
 	testGlobalStore := newGlobalServiceStore()
 
-	selector, _ := labels.Parse(testGlobalTopologySelectorLabel)
+	selector, _ := labels.Parse(testGlobalRoutingStrategyLabel)
 	testRunner := newGlobalRunner(
 		fakeClient,
 		fakeWatchClient,
@@ -106,7 +106,7 @@ func TestAddSingleRemoteGlobalHeadlessService(t *testing.T) {
 	fakeWatchClient := fake.NewSimpleClientset(testSvc)
 	testGlobalStore := newGlobalServiceStore()
 
-	selector, _ := labels.Parse(testGlobalTopologySelectorLabel)
+	selector, _ := labels.Parse(testGlobalRoutingStrategyLabel)
 	testRunner := newGlobalRunner(
 		fakeClient,
 		fakeWatchClient,
@@ -192,7 +192,7 @@ func TestModifySingleRemoteGlobalService(t *testing.T) {
 	}
 	fakeWatchClient := fake.NewSimpleClientset(testSvc)
 
-	selector, _ := labels.Parse(testGlobalTopologySelectorLabel)
+	selector, _ := labels.Parse(testGlobalRoutingStrategyLabel)
 	testRunner := newGlobalRunner(
 		fakeClient,
 		fakeWatchClient,
@@ -208,7 +208,7 @@ func TestModifySingleRemoteGlobalService(t *testing.T) {
 	cache.WaitForNamedCacheSync("serviceWatcher", ctx.Done(), testRunner.serviceWatcher.HasSynced)
 
 	testRunner.reconcileGlobalService("test-svc", "remote-ns")
-	// After reconciling we should see updated ports and drop the topology aware annotation
+	// After reconciling we should see updated ports and drop the topology aware hints annotation
 	expectedSpec := TestSpec{
 		Ports:     testPorts,
 		ClusterIP: "1.1.1.1",

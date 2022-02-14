@@ -35,11 +35,11 @@ func createTestService(name, namespace, clusterIP string, ports []int32) *v1.Ser
 	}
 }
 
-func createTestStore(t *testing.T, services []testService, topologyAware bool) *GlobalServiceStore {
+func createTestStore(t *testing.T, services []testService, topologyAwareHints bool) *GlobalServiceStore {
 	store := newGlobalServiceStore()
 	for _, s := range services {
 		svc := createTestService(s.name, s.namespace, s.clusterIP, s.ports)
-		_, err := store.AddOrUpdateClusterServiceTarget(svc, s.cluster, topologyAware)
+		_, err := store.AddOrUpdateClusterServiceTarget(svc, s.cluster, topologyAwareHints)
 		assert.Equal(t, nil, err)
 	}
 	return store
@@ -130,7 +130,7 @@ func TestAddOrUpdateClusterServiceTarget_UpdateFungibleTopologyAnnotations(t *te
 		t.Fatal(err)
 	}
 	// This should keep a single service in the store, but delete the
-	// topology annotation
+	// topology aware hints annotation
 	assert.Equal(t, 1, store.Len())
 	gsvc, err = store.Get("name", "namespace")
 	if err != nil {
