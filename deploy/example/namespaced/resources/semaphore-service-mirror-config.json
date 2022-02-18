@@ -1,0 +1,27 @@
+{
+  "global": {
+    "globalSvcLabelSelector": "mirror.semaphore.uw.io/global-service=true",
+    "globalSvcRoutingStrategyLabel": "mirror.semaphore.uw.io/global-service-routing-strategy=local-first",
+    "mirrorSvcLabelSelector": "uw.systems/mirror=true",
+    "mirrorNamespace": "namespaced",
+    "serviceSync": true,
+    "endpointSliceSync": true
+  },
+  "localCluster": {
+    "name": "local",
+    "zones": [
+      "europe-west2-a",
+      "europe-west2-b",
+      "europe-west2-c"
+    ]
+  },
+  "remoteClusters": [
+    {
+      "name": "c1",
+      "remoteAPIURL": "https://elb.master.k8s.exp-1.c1.uw.systems",
+      "remoteCAURL": "https://kube-ca-cert.exp-1.c1.uw.systems",
+      "remoteSATokenPath": "/etc/semaphore-service-mirror/tokens/c1/token",
+      "servicePrefix": "c1"
+    }
+  ]
+}

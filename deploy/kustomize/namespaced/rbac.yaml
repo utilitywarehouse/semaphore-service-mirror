@@ -3,25 +3,35 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: semaphore-service-mirror
 rules:
-- apiGroups: [""]
-  resources:
-  - services
-  - endpoints
-  verbs:
-    - get
-    - list
-    - watch
-    - create
-    - update
-    - delete
+  - apiGroups: [""]
+    resources:
+      - services
+      - endpoints
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - delete
+  - apiGroups: ["discovery.k8s.io"]
+    resources:
+      - endpointslices
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - delete
 ---
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: semaphore-service-mirror
 subjects:
-- kind: ServiceAccount
-  name: semaphore-service-mirror
+  - kind: ServiceAccount
+    name: semaphore-service-mirror
 roleRef:
   kind: Role
   name: semaphore-service-mirror
