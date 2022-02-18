@@ -26,12 +26,7 @@ func TestConfig(t *testing.T) {
 
 	globalConfigOnly := []byte(`
 {
-  "global": {
-    "globalSvcLabelSelector": "globalLabel",
-    "globalSvcTopologyLabel": "globalTopologyLabel",
-    "mirrorSvcLabelSelector": "label",
-    "mirrorNamespace": "sys-semaphore"
-  },
+  "global": {},
   "localCluster":{
     "name": "local_cluster"
   }
@@ -75,6 +70,10 @@ func TestConfig(t *testing.T) {
 	rawFullConfig := []byte(`
 {
   "global": {
+    "globalSvcLabelSelector": "globalLabel",
+    "globalSvcRoutingStrategyLabel": "globalTopologyLabel",
+    "mirrorSvcLabelSelector": "mirrorLabel",
+    "mirrorNamespace": "sys-semaphore",
     "serviceSync": true
   },
   "localCluster": {
@@ -98,12 +97,12 @@ func TestConfig(t *testing.T) {
   ]
 }
 `)
-	config, err := parseConfig(rawFullConfig, testFlagGlobalSvcLabelSelector, testFlagGlobalSvcTopologyLabel, testFlagMirrorSvcLabelSelector, testFlagMirrorNamespace)
+	config, err := parseConfig(rawFullConfig, "", "", "", "")
 	assert.Equal(t, nil, err)
-	assert.Equal(t, testFlagGlobalSvcLabelSelector, config.Global.GlobalSvcLabelSelector)
-	assert.Equal(t, testFlagGlobalSvcTopologyLabel, config.Global.GlobalSvcRoutingStrategyLabel)
-	assert.Equal(t, testFlagMirrorSvcLabelSelector, config.Global.MirrorSvcLabelSelector)
-	assert.Equal(t, testFlagMirrorNamespace, config.Global.MirrorNamespace)
+	assert.Equal(t, "globalLabel", config.Global.GlobalSvcLabelSelector)
+	assert.Equal(t, "globalTopologyLabel", config.Global.GlobalSvcRoutingStrategyLabel)
+	assert.Equal(t, "mirrorLabel", config.Global.MirrorSvcLabelSelector)
+	assert.Equal(t, "sys-semaphore", config.Global.MirrorNamespace)
 	assert.Equal(t, true, config.Global.ServiceSync)
 	assert.Equal(t, "local_cluster", config.LocalCluster.Name)
 	assert.Equal(t, "/path/to/kube/config", config.LocalCluster.KubeConfigPath)
