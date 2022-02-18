@@ -46,13 +46,17 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 
 // globalConfig will keep configuration that applies globally on the operator
 type globalConfig struct {
-	LabelSelector   string `json:"labelSelector"`   // Label used to select remote services to mirror
-	MirrorNamespace string `json:"mirrorNamespace"` // Local namespace to mirror remote services
-	ServiceSync     bool   `json:"serviceSync"`     // sync services on startup
+	GlobalSvcLabelSelector        string `json:"globalSvcLabelSelector"`   // Label used to select global services to mirror
+	GlobalSvcRoutingStrategyLabel string `json:"globalSvcRoutingStrategy"` // Label used to enable topology aware hints for global services
+	MirrorSvcLabelSelector        string `json:"mirrorSvcLabelSelector"`   // Label used to select remote services to mirror
+	MirrorNamespace               string `json:"mirrorNamespace"`          // Local namespace to mirror remote services
+	ServiceSync                   bool   `json:"serviceSync"`              // sync services on startup
 }
 
 type localClusterConfig struct {
-	KubeConfigPath string `json:"kubeConfigPath"`
+	Name           string   `json:"name"`
+	KubeConfigPath string   `json:"kubeConfigPath"`
+	Zones          []string `json:"zones"`
 }
 
 type remoteClusterConfig struct {
@@ -72,23 +76,42 @@ type Config struct {
 	RemoteClusters []*remoteClusterConfig `json:"remoteClusters"`
 }
 
-func parseConfig(rawConfig []byte, flagLabelSelector, flagMirrorNamespace string) (*Config, error) {
+func parseConfig(rawConfig []byte, flagGlobalSvcLabelSelector, flagGlobalSvcRoutingStrategyLabel, flagMirrorSvcLabelSelector, flagMirrorNamespace string) (*Config, error) {
 	conf := &Config{}
 	if err := json.Unmarshal(rawConfig, conf); err != nil {
 		return nil, fmt.Errorf("error unmarshalling config: %v", err)
 	}
 	// Override global config via flags/env vars and check
-	if flagLabelSelector != "" {
-		conf.Global.LabelSelector = flagLabelSelector
+	if flagMirrorSvcLabelSelector != "" {
+		conf.Global.MirrorSvcLabelSelector = flagMirrorSvcLabelSelector
 	}
-	if conf.Global.LabelSelector == "" {
-		return nil, fmt.Errorf("Label selector configuration should be specified either via global json config, env vars or flag")
+	if conf.Global.MirrorSvcLabelSelector == "" {
+		return nil, fmt.Errorf("Label selector for service mirroring should be specified either via global json config, env vars or flag")
+	}
+	if flagGlobalSvcLabelSelector != "" {
+		conf.Global.GlobalSvcLabelSelector = flagGlobalSvcLabelSelector
+	}
+	if conf.Global.GlobalSvcLabelSelector == "" {
+		return nil, fmt.Errorf("Label selector for global services should be specified either via global json config, env vars or flag")
+	}
+	if flagGlobalSvcRoutingStrategyLabel != "" {
+		conf.Global.GlobalSvcRoutingStrategyLabel = flagGlobalSvcRoutingStrategyLabel
+	}
+	if conf.Global.GlobalSvcRoutingStrategyLabel == "" {
+		return nil, fmt.Errorf("Label to enable topology aware hints for global services should be specified either via global json config, env vars or flag")
 	}
 	if flagMirrorNamespace != "" {
 		conf.Global.MirrorNamespace = flagMirrorNamespace
 	}
 	if conf.Global.MirrorNamespace == "" {
 		return nil, fmt.Errorf("Local mirroring namespace should be specified either via global json config, env vars or flag")
+	}
+	if conf.LocalCluster.Name == "" {
+		return nil, fmt.Errorf("Configuration is missing local cluster name")
+	}
+	// If local cluster zones are not set, default to a dummy value, so that kube-proxy does not complain
+	if len(conf.LocalCluster.Zones) == 0 {
+		conf.LocalCluster.Zones = []string{"local"}
 	}
 
 	// Check for mandatory remote config.

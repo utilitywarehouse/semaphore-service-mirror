@@ -9,8 +9,10 @@ import (
 )
 
 var (
-	testFlagLabelSelector   = "flag-label"
-	testFlagMirrorNamespace = "flag-namespace"
+	testFlagGlobalSvcLabelSelector = "flag-global-label"
+	testFlagGlobalSvcTopologyLabel = "flag-global-topology-label"
+	testFlagMirrorSvcLabelSelector = "flag-mirror-label"
+	testFlagMirrorNamespace        = "flag-namespace"
 )
 
 func TestConfig(t *testing.T) {
@@ -19,22 +21,30 @@ func TestConfig(t *testing.T) {
   "global": {}
 }
 `)
-	_, err := parseConfig(emptyConfig, testFlagLabelSelector, testFlagMirrorNamespace)
-	assert.Equal(t, fmt.Errorf("No remote cluster configuration defined"), err)
+	_, err := parseConfig(emptyConfig, testFlagGlobalSvcLabelSelector, testFlagGlobalSvcTopologyLabel, testFlagMirrorSvcLabelSelector, testFlagMirrorNamespace)
+	assert.Equal(t, fmt.Errorf("Configuration is missing local cluster name"), err)
 
 	globalConfigOnly := []byte(`
 {
   "global": {
-    "labelSelector": "label",
+    "globalSvcLabelSelector": "globalLabel",
+    "globalSvcTopologyLabel": "globalTopologyLabel",
+    "mirrorSvcLabelSelector": "label",
     "mirrorNamespace": "sys-semaphore"
+  },
+  "localCluster":{
+    "name": "local_cluster"
   }
 }
 `)
-	_, err = parseConfig(globalConfigOnly, testFlagLabelSelector, testFlagMirrorNamespace)
+	_, err = parseConfig(globalConfigOnly, testFlagGlobalSvcLabelSelector, testFlagGlobalSvcTopologyLabel, testFlagMirrorSvcLabelSelector, testFlagMirrorNamespace)
 	assert.Equal(t, fmt.Errorf("No remote cluster configuration defined"), err)
 
 	emptyRemoteConfigName := []byte(`
 {
+  "localCluster":{
+    "name": "local_cluster"
+  },
   "remoteClusters": [
     {
       "name": ""
@@ -42,7 +52,7 @@ func TestConfig(t *testing.T) {
   ]
 }
 `)
-	_, err = parseConfig(emptyRemoteConfigName, testFlagLabelSelector, testFlagMirrorNamespace)
+	_, err = parseConfig(emptyRemoteConfigName, testFlagGlobalSvcLabelSelector, testFlagGlobalSvcTopologyLabel, testFlagMirrorSvcLabelSelector, testFlagMirrorNamespace)
 	assert.Equal(t, fmt.Errorf("Configuration is missing remote cluster name"), err)
 	insufficientRemoteKubeConfigPath := []byte(`
 {
@@ -59,7 +69,7 @@ func TestConfig(t *testing.T) {
   ]
 }
 `)
-	_, err = parseConfig(insufficientRemoteKubeConfigPath, testFlagLabelSelector, testFlagMirrorNamespace)
+	_, err = parseConfig(insufficientRemoteKubeConfigPath, testFlagGlobalSvcLabelSelector, testFlagGlobalSvcTopologyLabel, testFlagMirrorSvcLabelSelector, testFlagMirrorNamespace)
 	assert.Equal(t, fmt.Errorf("Insufficient configuration to create remote cluster client. Set kubeConfigPath or remoteAPIURL and remoteCAURL and remoteSATokenPath"), err)
 
 	rawFullConfig := []byte(`
@@ -88,11 +98,14 @@ func TestConfig(t *testing.T) {
   ]
 }
 `)
-	config, err := parseConfig(rawFullConfig, testFlagLabelSelector, testFlagMirrorNamespace)
+	config, err := parseConfig(rawFullConfig, testFlagGlobalSvcLabelSelector, testFlagGlobalSvcTopologyLabel, testFlagMirrorSvcLabelSelector, testFlagMirrorNamespace)
 	assert.Equal(t, nil, err)
-	assert.Equal(t, testFlagLabelSelector, config.Global.LabelSelector)
+	assert.Equal(t, testFlagGlobalSvcLabelSelector, config.Global.GlobalSvcLabelSelector)
+	assert.Equal(t, testFlagGlobalSvcTopologyLabel, config.Global.GlobalSvcRoutingStrategyLabel)
+	assert.Equal(t, testFlagMirrorSvcLabelSelector, config.Global.MirrorSvcLabelSelector)
 	assert.Equal(t, testFlagMirrorNamespace, config.Global.MirrorNamespace)
 	assert.Equal(t, true, config.Global.ServiceSync)
+	assert.Equal(t, "local_cluster", config.LocalCluster.Name)
 	assert.Equal(t, "/path/to/kube/config", config.LocalCluster.KubeConfigPath)
 	assert.Equal(t, 2, len(config.RemoteClusters))
 	assert.Equal(t, "remote_ca_url", config.RemoteClusters[0].RemoteCAURL)

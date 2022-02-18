@@ -19,37 +19,6 @@ var testMirrorLabels = map[string]string{
 	"mirror-svc-prefix-sync": "prefix",
 }
 
-// To make expected types
-type TestSvc struct {
-	Name      string
-	Namespace string
-	Spec      TestSpec
-}
-
-type TestSpec struct {
-	Ports     []v1.ServicePort
-	Selector  map[string]string
-	ClusterIP string
-}
-
-func assertExpectedServices(t *testing.T, ctx context.Context, expectedSvcs []TestSvc, fakeClient *fake.Clientset) {
-	svcs, err := fakeClient.CoreV1().Services("").List(
-		ctx,
-		metav1.ListOptions{},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, len(expectedSvcs), len(svcs.Items))
-	for i, expected := range expectedSvcs {
-		assert.Equal(t, expected.Name, svcs.Items[i].Name)
-		assert.Equal(t, expected.Namespace, svcs.Items[i].Namespace)
-		assert.Equal(t, expected.Spec.ClusterIP, svcs.Items[i].Spec.ClusterIP)
-		assert.Equal(t, expected.Spec.Selector, svcs.Items[i].Spec.Selector)
-		assert.Equal(t, expected.Spec.Ports, svcs.Items[i].Spec.Ports)
-	}
-}
-
 func TestAddService(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -72,7 +41,7 @@ func TestAddService(t *testing.T) {
 	}
 	fakeWatchClient := fake.NewSimpleClientset(testSvc)
 
-	testRunner := NewRunner(
+	testRunner := newMirrorRunner(
 		fakeClient,
 		fakeWatchClient,
 		"test-runner",
@@ -94,12 +63,15 @@ func TestAddService(t *testing.T) {
 		ClusterIP: "",
 		Selector:  nil,
 	}
-	expectedSvcs := []TestSvc{TestSvc{
-		Name:      fmt.Sprintf("prefix-remote-ns-%s-test-svc", Separator),
-		Namespace: "local-ns",
-		Spec:      expectedSpec,
-	}}
-	assertExpectedServices(t, ctx, expectedSvcs, fakeClient)
+	// Test will appear alphabetically sorted in the client response
+	expectedSvcs := []TestSvc{
+		TestSvc{
+			Name:      fmt.Sprintf("prefix-remote-ns-%s-test-svc", Separator),
+			Namespace: "local-ns",
+			Spec:      expectedSpec,
+		},
+	}
+	assertExpectedServices(ctx, t, expectedSvcs, fakeClient)
 }
 
 func TestAddHeadlessService(t *testing.T) {
@@ -124,7 +96,7 @@ func TestAddHeadlessService(t *testing.T) {
 	}
 	fakeWatchClient := fake.NewSimpleClientset(testSvc)
 
-	testRunner := NewRunner(
+	testRunner := newMirrorRunner(
 		fakeClient,
 		fakeWatchClient,
 		"test-runner",
@@ -146,12 +118,14 @@ func TestAddHeadlessService(t *testing.T) {
 		ClusterIP: "None",
 		Selector:  nil,
 	}
-	expectedSvcs := []TestSvc{TestSvc{
-		Name:      fmt.Sprintf("prefix-remote-ns-%s-test-svc", Separator),
-		Namespace: "local-ns",
-		Spec:      expectedSpec,
-	}}
-	assertExpectedServices(t, ctx, expectedSvcs, fakeClient)
+	expectedSvcs := []TestSvc{
+		TestSvc{
+			Name:      fmt.Sprintf("prefix-remote-ns-%s-test-svc", Separator),
+			Namespace: "local-ns",
+			Spec:      expectedSpec,
+		},
+	}
+	assertExpectedServices(ctx, t, expectedSvcs, fakeClient)
 }
 
 func TestModifyService(t *testing.T) {
@@ -188,7 +162,7 @@ func TestModifyService(t *testing.T) {
 	}
 	fakeWatchClient := fake.NewSimpleClientset(testSvc)
 
-	testRunner := NewRunner(
+	testRunner := newMirrorRunner(
 		fakeClient,
 		fakeWatchClient,
 		"test-runner",
@@ -208,12 +182,14 @@ func TestModifyService(t *testing.T) {
 		ClusterIP: "None",
 		Selector:  nil,
 	}
-	expectedSvcs := []TestSvc{TestSvc{
-		Name:      fmt.Sprintf("prefix-remote-ns-%s-test-svc", Separator),
-		Namespace: "local-ns",
-		Spec:      expectedSpec,
-	}}
-	assertExpectedServices(t, ctx, expectedSvcs, fakeClient)
+	expectedSvcs := []TestSvc{
+		TestSvc{
+			Name:      fmt.Sprintf("prefix-remote-ns-%s-test-svc", Separator),
+			Namespace: "local-ns",
+			Spec:      expectedSpec,
+		},
+	}
+	assertExpectedServices(ctx, t, expectedSvcs, fakeClient)
 }
 
 func TestModifyServiceNoChange(t *testing.T) {
@@ -249,7 +225,7 @@ func TestModifyServiceNoChange(t *testing.T) {
 	}
 	fakeWatchClient := fake.NewSimpleClientset(testSvc)
 
-	testRunner := NewRunner(
+	testRunner := newMirrorRunner(
 		fakeClient,
 		fakeWatchClient,
 		"test-runner",
@@ -327,7 +303,7 @@ func TestServiceSync(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	testRunner := NewRunner(
+	testRunner := newMirrorRunner(
 		fakeClient,
 		fakeWatchClient,
 		"test-runner",
