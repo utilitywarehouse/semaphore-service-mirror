@@ -181,5 +181,6 @@ func makeGlobalRunner(homeClient, remoteClient *kubernetes.Clientset, name strin
 		gst,
 		localCluster,
 		routingStrategyLabel,
+		global.EndpointSliceSync,
 	)
 }

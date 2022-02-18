@@ -42,8 +42,8 @@ func generateGlobalEndpointSliceName(name string) string {
 	return fmt.Sprintf("gl-%s", name)
 }
 
-func generateEndpointSliceLabels(targetService string) map[string]string {
-	labels := map[string]string{}
+func generateEndpointSliceLabels(baseLabels map[string]string, targetService string) map[string]string {
+	labels := baseLabels
 	labels["kubernetes.io/service-name"] = targetService
 	labels["endpointslice.kubernetes.io/managed-by"] = "semaphore-service-mirror"
 	return labels

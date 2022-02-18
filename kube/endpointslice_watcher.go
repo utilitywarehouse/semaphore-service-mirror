@@ -101,6 +101,10 @@ func (esw *EndpointSliceWatcher) Stop() {
 	close(esw.stopChannel)
 }
 
+func (esw *EndpointSliceWatcher) HasSynced() bool {
+	return esw.controller.HasSynced()
+}
+
 func (esw *EndpointSliceWatcher) Get(name, namespace string) (*discoveryv1.EndpointSlice, error) {
 	key := namespace + "/" + name
 

@@ -51,6 +51,7 @@ type globalConfig struct {
 	MirrorSvcLabelSelector        string `json:"mirrorSvcLabelSelector"`   // Label used to select remote services to mirror
 	MirrorNamespace               string `json:"mirrorNamespace"`          // Local namespace to mirror remote services
 	ServiceSync                   bool   `json:"serviceSync"`              // sync services on startup
+	EndpointSliceSync             bool   `json:"endpointSliceSync"`        // sync endpointslices (for global services) at startup
 }
 
 type localClusterConfig struct {

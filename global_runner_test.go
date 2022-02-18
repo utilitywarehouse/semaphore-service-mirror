@@ -6,8 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/utilitywarehouse/semaphore-service-mirror/log"
 	v1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes/fake"
@@ -56,6 +58,7 @@ func TestAddSingleRemoteGlobalService(t *testing.T) {
 		testGlobalStore,
 		false,
 		selector,
+		false,
 	)
 	go testRunner.serviceWatcher.Run()
 	cache.WaitForNamedCacheSync("serviceWatcher", ctx.Done(), testRunner.serviceWatcher.HasSynced)
@@ -117,6 +120,7 @@ func TestAddSingleRemoteGlobalHeadlessService(t *testing.T) {
 		testGlobalStore,
 		false,
 		selector,
+		false,
 	)
 	go testRunner.serviceWatcher.Run()
 	cache.WaitForNamedCacheSync("serviceWatcher", ctx.Done(), testRunner.serviceWatcher.HasSynced)
@@ -203,6 +207,7 @@ func TestModifySingleRemoteGlobalService(t *testing.T) {
 		existingGlobalStore,
 		false,
 		selector,
+		false,
 	)
 	go testRunner.serviceWatcher.Run()
 	cache.WaitForNamedCacheSync("serviceWatcher", ctx.Done(), testRunner.serviceWatcher.HasSynced)
@@ -276,6 +281,7 @@ func TestAddGlobalServiceMultipleClusters(t *testing.T) {
 		testGlobalStore,
 		false,
 		selector,
+		false,
 	)
 	testRunnerB := newGlobalRunner(
 		fakeClient,
@@ -287,6 +293,7 @@ func TestAddGlobalServiceMultipleClusters(t *testing.T) {
 		testGlobalStore,
 		false,
 		selector,
+		false,
 	)
 
 	go testRunnerA.serviceWatcher.Run()
@@ -369,6 +376,7 @@ func TestDeleteGlobalServiceMultipleClusters(t *testing.T) {
 		testGlobalStore,
 		false,
 		selector,
+		false,
 	)
 	testRunnerB := newGlobalRunner(
 		fakeClient,
@@ -380,6 +388,7 @@ func TestDeleteGlobalServiceMultipleClusters(t *testing.T) {
 		testGlobalStore,
 		false,
 		selector,
+		false,
 	)
 
 	go testRunnerA.serviceWatcher.Run()
@@ -411,4 +420,80 @@ func TestDeleteGlobalServiceMultipleClusters(t *testing.T) {
 	// Deleting the service from cluster B should delete the global service
 	testRunnerB.reconcileGlobalService("test-svc", "remote-ns")
 	assertExpectedServices(ctx, t, []TestSvc{}, fakeClient)
+}
+
+func TestEndpointSliceSync(t *testing.T) {
+	log.InitLogger("semaphore-service-mirror-test", "debug")
+	testMirrorLabels := map[string]string{
+		"mirrored-endpoint-slice":        "true",
+		"mirror-endpointslice-sync-name": "test-runner",
+	}
+	// EndpointSlice on the remote cluster
+	testEndpointSlice := &discoveryv1.EndpointSlice{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-slice",
+			Namespace: "remote-ns",
+			Labels:    testGlobalSvcLabel,
+		},
+	}
+	fakeWatchClient := fake.NewSimpleClientset(testEndpointSlice)
+
+	// Create mirrored endpointslice
+	mirroredEndpointSlice := &discoveryv1.EndpointSlice{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      generateGlobalEndpointSliceName("test-slice"),
+			Namespace: "local-ns",
+			Labels:    generateEndpointSliceLabels(testMirrorLabels, "test-svc"),
+		},
+	}
+	// Create stale endpointslice
+	staleEndpointSlice := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      generateGlobalEndpointSliceName("old-slice"),
+			Namespace: "local-ns",
+			Labels:    generateEndpointSliceLabels(testMirrorLabels, "test-svc"),
+		},
+	}
+	// feed them to the fake client
+	fakeClient := fake.NewSimpleClientset(mirroredEndpointSlice, staleEndpointSlice)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	testGlobalStore := newGlobalServiceStore()
+	selector, _ := labels.Parse(testGlobalRoutingStrategyLabel)
+	testRunner := newGlobalRunner(
+		fakeClient,
+		fakeWatchClient,
+		"test-runner",
+		"local-ns",
+		testGlobalSvcLabelString,
+		60*time.Minute,
+		testGlobalStore,
+		false,
+		selector,
+		true,
+	)
+	go testRunner.endpointSliceWatcher.Run()
+	go testRunner.mirrorEndpointSliceWatcher.Run()
+	cache.WaitForNamedCacheSync(fmt.Sprintf("gl-%s-endpointSliceWatcher", testRunner.name), ctx.Done(), testRunner.endpointSliceWatcher.HasSynced)
+	cache.WaitForNamedCacheSync(fmt.Sprintf("mirror-%s-endpointSliceWatcher", testRunner.name), ctx.Done(), testRunner.mirrorEndpointSliceWatcher.HasSynced)
+
+	// EndpointSliceSync will trigger a sync. Verify that old endpointslice is deleted
+	if err := testRunner.EndpointSliceSync(); err != nil {
+		t.Fatal(err)
+	}
+	endpointslices, err := fakeClient.DiscoveryV1().EndpointSlices("").List(
+		ctx,
+		metav1.ListOptions{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, 1, len(endpointslices.Items))
+	assert.Equal(
+		t,
+		generateGlobalEndpointSliceName("test-slice"),
+		endpointslices.Items[0].Name,
+	)
 }
