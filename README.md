@@ -88,7 +88,8 @@ cluster.
     "globalSvcRoutingStrategyLabel": "mirror.semaphore.uw.io/global-service-routing-strategy=local-first",
     "mirrorSvcLabelSelector": "mirror.semaphore.uw.io/mirror-service=true",
     "mirrorNamespace": "semaphore",
-    "serviceSync": true
+    "serviceSync": true,
+    "endpointSliceSync": true
   },
   "localCluster": {
     "name": "local",

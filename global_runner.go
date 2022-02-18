@@ -21,23 +21,29 @@ import (
 // GlobalRunner watches a cluster for global services and mirrors the found
 // configuration under a local namespace
 type GlobalRunner struct {
-	ctx                  context.Context
-	client               kubernetes.Interface
-	globalServiceStore   *GlobalServiceStore
-	serviceQueue         *queue
-	serviceWatcher       *kube.ServiceWatcher
-	endpointSliceQueue   *queue
-	endpointSliceWatcher *kube.EndpointSliceWatcher
-	name                 string
-	namespace            string
-	labelselector        string
-	sync                 bool
-	initialised          bool            // Flag to turn on after the successful initialisation of the runner.
-	local                bool            // Flag to identify if the runner is running against a local or remote cluster
-	routingStrategyLabel labels.Selector // Label to identify services that want to utilise topology hints
+	ctx                        context.Context
+	client                     kubernetes.Interface
+	globalServiceStore         *GlobalServiceStore
+	serviceQueue               *queue
+	serviceWatcher             *kube.ServiceWatcher
+	endpointSliceQueue         *queue
+	endpointSliceWatcher       *kube.EndpointSliceWatcher
+	mirrorEndpointSliceWatcher *kube.EndpointSliceWatcher
+	name                       string
+	namespace                  string
+	labelselector              string
+	sync                       bool
+	syncMirrorLabels           map[string]string // Labels used to watch mirrore endpointslices and delete stale objects on startup
+	initialised                bool              // Flag to turn on after the successful initialisation of the runner.
+	local                      bool              // Flag to identify if the runner is running against a local or remote cluster
+	routingStrategyLabel       labels.Selector   // Label to identify services that want to utilise topology hints
 }
 
-func newGlobalRunner(client, watchClient kubernetes.Interface, name, namespace, labelselector string, resyncPeriod time.Duration, gst *GlobalServiceStore, local bool, rsl labels.Selector) *GlobalRunner {
+func newGlobalRunner(client, watchClient kubernetes.Interface, name, namespace, labelselector string, resyncPeriod time.Duration, gst *GlobalServiceStore, local bool, rsl labels.Selector, sync bool) *GlobalRunner {
+	mirrorLabels := map[string]string{
+		"mirrored-endpoint-slice":        "true",
+		"mirror-endpointslice-sync-name": name,
+	}
 	runner := &GlobalRunner{
 		ctx:                  context.Background(),
 		client:               client,
@@ -47,6 +53,8 @@ func newGlobalRunner(client, watchClient kubernetes.Interface, name, namespace, 
 		initialised:          false,
 		local:                local,
 		routingStrategyLabel: rsl,
+		sync:                 sync,
+		syncMirrorLabels:     mirrorLabels,
 	}
 	runner.serviceQueue = newQueue(fmt.Sprintf("%s-gl-service", name), runner.reconcileGlobalService)
 	runner.endpointSliceQueue = newQueue(fmt.Sprintf("%s-endpointslice", name), runner.reconcileEndpointSlice)
@@ -75,6 +83,18 @@ func newGlobalRunner(client, watchClient kubernetes.Interface, name, namespace, 
 	runner.endpointSliceWatcher = endpointSliceWatcher
 	runner.endpointSliceWatcher.Init()
 
+	// Create and initialize an endpointslice watcher for mirrored endpointslices
+	mirrorEndpointSliceWatcher := kube.NewEndpointSliceWatcher(
+		fmt.Sprintf("mirror-%s-endpointSliceWatcher", name),
+		watchClient,
+		resyncPeriod,
+		nil,
+		labels.Set(mirrorLabels).String(),
+		namespace,
+	)
+	runner.mirrorEndpointSliceWatcher = mirrorEndpointSliceWatcher
+	runner.mirrorEndpointSliceWatcher.Init()
+
 	return runner
 }
 
@@ -89,6 +109,25 @@ func (gr *GlobalRunner) Run() error {
 	}
 
 	go gr.endpointSliceWatcher.Run()
+	go gr.mirrorEndpointSliceWatcher.Run()
+	// We need to wait fot endpoinslices watchers to sync before we sync
+	if ok := cache.WaitForNamedCacheSync(fmt.Sprintf("gl-%s-endpointSliceWatcher", gr.name), stopCh, gr.endpointSliceWatcher.HasSynced); !ok {
+		return fmt.Errorf("failed to wait for endpintslices caches to sync")
+	}
+	if ok := cache.WaitForNamedCacheSync(fmt.Sprintf("mirror-%s-endpointSliceWatcher", gr.name), stopCh, gr.mirrorEndpointSliceWatcher.HasSynced); !ok {
+		return fmt.Errorf("failed to wait for mirror endpintslices caches to sync")
+	}
+	// After endpointslice store syncs, perform a sync to delete stale mirrors
+	if gr.sync {
+		log.Logger.Info("Syncing endpointslices", "runner", gr.name)
+		if err := gr.EndpointSliceSync(); err != nil {
+			log.Logger.Warn(
+				"Error syncing endpointslices, skipping..",
+				"err", err,
+				"runner", gr.name,
+			)
+		}
+	}
 
 	go gr.serviceQueue.Run()
 	go gr.endpointSliceQueue.Run()
@@ -193,6 +232,49 @@ func (gr *GlobalRunner) getRemoteEndpointSlice(name, namespace string) (*discove
 	return gr.endpointSliceWatcher.Get(name, namespace)
 }
 
+// EndpointSliceSync checks for stale mirrors (endpointslices) under the local
+// namespace and deletes them
+func (gr *GlobalRunner) EndpointSliceSync() error {
+	storeEnpointSlices, err := gr.endpointSliceWatcher.List()
+	if err != nil {
+		return err
+	}
+
+	mirrorEndpointSliceList := []string{}
+	for _, es := range storeEnpointSlices {
+		mirrorEndpointSliceList = append(
+			mirrorEndpointSliceList,
+			generateGlobalEndpointSliceName(es.Name),
+		)
+	}
+
+	currEndpointSlices, err := gr.mirrorEndpointSliceWatcher.List()
+	if err != nil {
+		return err
+	}
+
+	for _, es := range currEndpointSlices {
+		_, inSlice := inSlice(mirrorEndpointSliceList, es.Name)
+		if !inSlice {
+			log.Logger.Info(
+				"Deleting old endpointslice",
+				"service", es.Name,
+				"runner", gr.name,
+			)
+			if err := gr.deleteEndpointSlice(es.Name, es.Namespace); err != nil {
+				log.Logger.Error(
+					"Error clearing endpointslice",
+					"endpointslice", es.Name,
+					"err", err,
+					"runner", gr.name,
+				)
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (gr *GlobalRunner) getEndpointSlice(name, namespace string) (*discoveryv1.EndpointSlice, error) {
 	return gr.client.DiscoveryV1().EndpointSlices(namespace).Get(
 		gr.ctx,
@@ -234,7 +316,7 @@ func (gr *GlobalRunner) createEndpointSlice(name, namespace, targetService strin
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
 				Namespace: namespace,
-				Labels:    generateEndpointSliceLabels(targetService),
+				Labels:    generateEndpointSliceLabels(gr.syncMirrorLabels, targetService),
 			},
 			AddressType: at,
 			Endpoints:   gr.ensureEndpointSliceZones(endpoints),
@@ -251,7 +333,7 @@ func (gr *GlobalRunner) updateEndpointSlice(name, namespace, targetService strin
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
 				Namespace: namespace,
-				Labels:    generateEndpointSliceLabels(targetService),
+				Labels:    generateEndpointSliceLabels(gr.syncMirrorLabels, targetService),
 			},
 			AddressType: at,
 			Endpoints:   gr.ensureEndpointSliceZones(endpoints),
