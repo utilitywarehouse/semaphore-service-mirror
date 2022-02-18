@@ -13,6 +13,10 @@ spec:
     metadata:
       labels:
         app: semaphore-service-mirror
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "8080"
     spec:
       serviceAccountName: semaphore-service-mirror
       containers:
@@ -22,27 +26,21 @@ spec:
             - name: SSM_CONFIG
               value: "/etc/semaphore-service-mirror/config.json"
           volumeMounts:
-            - name: token
-              mountPath: /etc/semaphore-service-mirror/tokens/c1
-              readOnly: true
             - name: config
               mountPath: /etc/semaphore-service-mirror/
           ports:
-            - name: readiness-port
+            - name: http
               containerPort: 8080
           livenessProbe:
             httpGet:
               path: /healthz
-              port: readiness-port
+              port: http
             periodSeconds: 10
             failureThreshold: 6
             initialDelaySeconds: 30
             successThreshold: 1
             timeoutSeconds: 1
       volumes:
-        - name: token
-          secret:
-            secretName: service-mirror-token
         - name: config
           configMap:
             name: semaphore-service-mirror-config

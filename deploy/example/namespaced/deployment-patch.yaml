@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: semaphore-service-mirror
+spec:
+  template:
+    spec:
+      containers:
+        - name: semaphore-service-mirror
+          volumeMounts:
+            - name: token
+              mountPath: /etc/semaphore-service-mirror/tokens/c1
+              readOnly: true
+      volumes:
+        - name: token
+          secret:
+            secretName: remote-kube-token
+        - name: config
+          configMap:
+            name: semaphore-service-mirror-config
