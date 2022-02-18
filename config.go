@@ -46,12 +46,12 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 
 // globalConfig will keep configuration that applies globally on the operator
 type globalConfig struct {
-	GlobalSvcLabelSelector        string `json:"globalSvcLabelSelector"`   // Label used to select global services to mirror
-	GlobalSvcRoutingStrategyLabel string `json:"globalSvcRoutingStrategy"` // Label used to enable topology aware hints for global services
-	MirrorSvcLabelSelector        string `json:"mirrorSvcLabelSelector"`   // Label used to select remote services to mirror
-	MirrorNamespace               string `json:"mirrorNamespace"`          // Local namespace to mirror remote services
-	ServiceSync                   bool   `json:"serviceSync"`              // sync services on startup
-	EndpointSliceSync             bool   `json:"endpointSliceSync"`        // sync endpointslices (for global services) at startup
+	GlobalSvcLabelSelector        string `json:"globalSvcLabelSelector"`        // Label used to select global services to mirror
+	GlobalSvcRoutingStrategyLabel string `json:"globalSvcRoutingStrategyLabel"` // Label used to enable topology aware hints for global services
+	MirrorSvcLabelSelector        string `json:"mirrorSvcLabelSelector"`        // Label used to select remote services to mirror
+	MirrorNamespace               string `json:"mirrorNamespace"`               // Local namespace to mirror remote services
+	ServiceSync                   bool   `json:"serviceSync"`                   // sync services on startup
+	EndpointSliceSync             bool   `json:"endpointSliceSync"`             // sync endpointslices (for global services) at startup
 }
 
 type localClusterConfig struct {
