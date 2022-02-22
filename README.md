@@ -216,7 +216,7 @@ cluster.global {
     reload
     rewrite continue {
         name regex ([\w-]*\.)?([\w-]*)\.([\w-]*)\.svc\.cluster\.global {1}gl-{3}-73736d-{2}.sys-semaphore.svc.cluster.local
-        answer name ([\w-]*\.)?gl-([\w-]*)-73736d-([\w-]*)\.sys-semaphore\.svc\.cluster\.local {1}{4}.{3}.svc.cluster.global
+        answer name ([\w-]*\.)?gl-([\w-]*)-73736d-([\w-]*)\.sys-semaphore\.svc\.cluster\.local {1}{3}.{2}.svc.cluster.global
     }
 }
 ```
