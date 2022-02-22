@@ -44,7 +44,7 @@ var (
 	queueLongestRunningProcessor = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "semaphore_service_mirror_queue_longest_running_processor_seconds",
-			Help: "Unfinished work in seconds, by queue name",
+			Help: "Longest running processor, by queue name",
 		},
 		[]string{"name"},
 	)
