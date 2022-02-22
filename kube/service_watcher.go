@@ -30,9 +30,10 @@ type ServiceWatcher struct {
 	labelSelector string
 	name          string
 	namespace     string
+	runner        string // Name of the parent runner of the watcher. Used for metrics to distinguish series.
 }
 
-func NewServiceWatcher(name string, client kubernetes.Interface, resyncPeriod time.Duration, handler ServiceEventHandler, labelSelector, namespace string) *ServiceWatcher {
+func NewServiceWatcher(name string, client kubernetes.Interface, resyncPeriod time.Duration, handler ServiceEventHandler, labelSelector, namespace, runner string) *ServiceWatcher {
 	return &ServiceWatcher{
 		ctx:           context.Background(),
 		client:        client,
@@ -42,6 +43,7 @@ func NewServiceWatcher(name string, client kubernetes.Interface, resyncPeriod ti
 		labelSelector: labelSelector,
 		name:          name,
 		namespace:     namespace,
+		runner:        runner,
 	}
 }
 
@@ -79,8 +81,8 @@ func (sw *ServiceWatcher) Init() {
 }
 
 func (sw *ServiceWatcher) handleEvent(eventType watch.EventType, oldObj, newObj *v1.Service) {
-	metrics.IncKubeWatcherEvents(sw.name, "service", eventType)
-	metrics.SetKubeWatcherObjects(sw.name, "service", float64(len(sw.store.List())))
+	metrics.IncKubeWatcherEvents(sw.name, "service", sw.runner, eventType)
+	metrics.SetKubeWatcherObjects(sw.name, "service", sw.runner, float64(len(sw.store.List())))
 
 	if sw.eventHandler != nil {
 		sw.eventHandler(eventType, oldObj, newObj)

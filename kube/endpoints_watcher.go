@@ -30,9 +30,10 @@ type EndpointsWatcher struct {
 	labelSelector string
 	name          string
 	namespace     string
+	runner        string // Name of the parent runner of the watcher. Used for metrics to distinguish series.
 }
 
-func NewEndpointsWatcher(name string, client kubernetes.Interface, resyncPeriod time.Duration, handler EndpointsEventHandler, labelSelector, namespace string) *EndpointsWatcher {
+func NewEndpointsWatcher(name string, client kubernetes.Interface, resyncPeriod time.Duration, handler EndpointsEventHandler, labelSelector, namespace, runner string) *EndpointsWatcher {
 	return &EndpointsWatcher{
 		ctx:           context.Background(),
 		client:        client,
@@ -42,6 +43,7 @@ func NewEndpointsWatcher(name string, client kubernetes.Interface, resyncPeriod 
 		labelSelector: labelSelector,
 		name:          name,
 		namespace:     namespace,
+		runner:        runner,
 	}
 }
 
@@ -79,8 +81,8 @@ func (ew *EndpointsWatcher) Init() {
 }
 
 func (ew *EndpointsWatcher) handleEvent(eventType watch.EventType, oldObj, newObj *v1.Endpoints) {
-	metrics.IncKubeWatcherEvents(ew.name, "endpoints", eventType)
-	metrics.SetKubeWatcherObjects(ew.name, "endpoints", float64(len(ew.store.List())))
+	metrics.IncKubeWatcherEvents(ew.name, "endpoints", ew.runner, eventType)
+	metrics.SetKubeWatcherObjects(ew.name, "endpoints", ew.runner, float64(len(ew.store.List())))
 
 	if ew.eventHandler != nil {
 		ew.eventHandler(eventType, oldObj, newObj)

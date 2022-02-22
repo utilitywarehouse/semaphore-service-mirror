@@ -56,41 +56,45 @@ func newGlobalRunner(client, watchClient kubernetes.Interface, name, namespace, 
 		sync:                 sync,
 		syncMirrorLabels:     mirrorLabels,
 	}
-	runner.serviceQueue = newQueue(fmt.Sprintf("%s-gl-service", name), runner.reconcileGlobalService)
+	runner.serviceQueue = newQueue(fmt.Sprintf("%s-global-service", name), runner.reconcileGlobalService)
 	runner.endpointSliceQueue = newQueue(fmt.Sprintf("%s-endpointslice", name), runner.reconcileEndpointSlice)
+	runnerName := fmt.Sprintf("global-%s", name)
 
 	// Create and initialize a service watcher
 	serviceWatcher := kube.NewServiceWatcher(
-		fmt.Sprintf("gl-%s-serviceWatcher", name),
+		fmt.Sprintf("%s-serviceWatcher", name),
 		watchClient,
 		resyncPeriod,
 		runner.ServiceEventHandler,
 		labelselector,
 		metav1.NamespaceAll,
+		runnerName,
 	)
 	runner.serviceWatcher = serviceWatcher
 	runner.serviceWatcher.Init()
 
 	// Create and initialize an endpointslice watcher
 	endpointSliceWatcher := kube.NewEndpointSliceWatcher(
-		fmt.Sprintf("gl-%s-endpointSliceWatcher", name),
+		fmt.Sprintf("%s-endpointSliceWatcher", name),
 		watchClient,
 		resyncPeriod,
 		runner.EndpointSliceEventHandler,
 		labelselector,
 		metav1.NamespaceAll,
+		runnerName,
 	)
 	runner.endpointSliceWatcher = endpointSliceWatcher
 	runner.endpointSliceWatcher.Init()
 
 	// Create and initialize an endpointslice watcher for mirrored endpointslices
 	mirrorEndpointSliceWatcher := kube.NewEndpointSliceWatcher(
-		fmt.Sprintf("mirror-%s-endpointSliceWatcher", name),
+		fmt.Sprintf("%s-mirrorEndpointSliceWatcher", name),
 		watchClient,
 		resyncPeriod,
 		nil,
 		labels.Set(mirrorLabels).String(),
 		namespace,
+		runnerName,
 	)
 	runner.mirrorEndpointSliceWatcher = mirrorEndpointSliceWatcher
 	runner.mirrorEndpointSliceWatcher.Init()

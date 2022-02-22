@@ -53,6 +53,7 @@ func newMirrorRunner(client, watchClient kubernetes.Interface, name, namespace, 
 	}
 	runner.serviceQueue = newQueue(fmt.Sprintf("%s-service", name), runner.reconcileService)
 	runner.endpointsQueue = newQueue(fmt.Sprintf("%s-endpoints", name), runner.reconcileEndpoints)
+	runnerName := fmt.Sprintf("mirror-%s", name)
 
 	// Create and initialize a service watcher
 	serviceWatcher := kube.NewServiceWatcher(
@@ -62,6 +63,7 @@ func newMirrorRunner(client, watchClient kubernetes.Interface, name, namespace, 
 		runner.ServiceEventHandler,
 		labelselector,
 		metav1.NamespaceAll,
+		runnerName,
 	)
 	runner.serviceWatcher = serviceWatcher
 	runner.serviceWatcher.Init()
@@ -74,6 +76,7 @@ func newMirrorRunner(client, watchClient kubernetes.Interface, name, namespace, 
 		nil,
 		labels.Set(mirrorLabels).String(),
 		namespace,
+		runnerName,
 	)
 	runner.mirrorServiceWatcher = mirrorServiceWatcher
 	runner.mirrorServiceWatcher.Init()
@@ -86,6 +89,7 @@ func newMirrorRunner(client, watchClient kubernetes.Interface, name, namespace, 
 		runner.EndpointsEventHandler,
 		labelselector,
 		metav1.NamespaceAll,
+		runnerName,
 	)
 	runner.endpointsWatcher = endpointsWatcher
 	runner.endpointsWatcher.Init()
@@ -98,6 +102,7 @@ func newMirrorRunner(client, watchClient kubernetes.Interface, name, namespace, 
 		nil,
 		labels.Set(mirrorLabels).String(),
 		namespace,
+		runnerName,
 	)
 	runner.mirrorEndpointsWatcher = mirrorEndpointsWatcher
 	runner.mirrorEndpointsWatcher.Init()

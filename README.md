@@ -249,3 +249,55 @@ endpoints to the same global service, there will be a race between services to
 force their attributes to the global service. For a predictable behaviour, make
 sure that ports match between services and either all or none set the topology
 label.
+
+## Metrics
+
+There are separate metrics available that one can use to determine the status
+of the controller. The available metrics can give a visibility on errors from
+the Kubernetes clients, the watchers and the controller's queues.
+
+### Kubernetes Client Metrics
+
+- `semaphore_service_mirror_kube_http_request_total`: Total number of HTTP
+  requests to the Kubernetes API by host, code and method.
+- `semaphore_service_mirror_kube_http_request_duration_seconds`: Histogram of
+  latencies for HTTP requests to the Kubernetes API by host and method
+
+### Kubernetes Watcher Metrics
+
+- `semaphore_service_mirror_kube_watcher_objects`: Number of objects watched by
+  watcher and kind
+- `semaphore_service_mirror_kube_watcher_events_total`: Number of events handled
+  by watcher, kind and event_type
+
+Because the controller runs multiple watchers in parallel, both for watching the
+remote clusters and the mirrored local objects, we use 2 labels to be able to
+distinguish between them.
+- `watcher` label follows the pattern `<cluster-name>-[mirror]<watcherType>`.
+  For example `watcher="aws-serviceWatcher"` will contain metrics for watching
+  services on a cluster called "aws", and `watcher="aws-mirrorServiceWatcher"`
+  will contain metrics for the mirrored local services from "aws" cluster.
+- `runner` label follows the pattern `[mirror|global]-<cluster-name>` and should
+  help distinguish if a watcher is used to create service mirrors or global
+  services.
+Based on the above, one could use the following expression:
+`semaphore_service_mirror_kube_watcher_objects{watcher=~".*-mirror.*"} - ignoring(watcher) semaphore_service_mirror_kube_watcher_objects{watcher!~".*-mirror.*"}`
+to monitor if controllers are lagging. The `runner` label comes handy in the
+above query, to avoid finding duplicate series for the match group.
+
+### Queue Metrics
+
+- `semaphore_service_mirror_queue_depth`: Workqueue depth, by queue name.
+- `semaphore_service_mirror_queue_adds_total`: Workqueue adds, by queue name.
+- `semaphore_service_mirror_queue_latency_duration_seconds`: Workqueue latency,
+  by queue name.
+- `semaphore_service_mirror_queue_work_duration_seconds`: Workqueue work
+  duration, by queue name.
+- `semaphore_service_mirror_queue_unfinished_work_seconds`: Unfinished work in
+  seconds, by queue name.
+- `semaphore_service_mirror_queue_longest_running_processor_seconds`: Longest
+  running processor, by queue name.
+- `semaphore_service_mirror_queue_retries_total`: Workqueue retries, by queue
+  name.
+- `semaphore_service_mirror_queue_requeued_items`: Items that have been requeued
+  but not reconciled yet, by queue name.
