@@ -6,4 +6,4 @@ resources:
 images:
   - name: semaphore-service-mirror
     newName: quay.io/utilitywarehouse/semaphore-service-mirror
-    newTag: master
+    newTag: v0.4.0
