@@ -3,7 +3,7 @@ module github.com/utilitywarehouse/semaphore-service-mirror
 go 1.17
 
 require (
-	github.com/hashicorp/go-hclog v1.0.0
+	github.com/hashicorp/go-hclog v1.2.0
 	github.com/prometheus/client_golang v1.12.1
 	github.com/stretchr/testify v1.7.1
 	k8s.io/api v0.23.5
