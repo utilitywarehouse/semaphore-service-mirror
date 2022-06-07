@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/hashicorp/go-hclog v1.2.0
-	github.com/prometheus/client_golang v1.12.1
+	github.com/prometheus/client_golang v1.12.2
 	github.com/stretchr/testify v1.7.1
 	k8s.io/api v0.24.1
 	k8s.io/apimachinery v0.24.1
