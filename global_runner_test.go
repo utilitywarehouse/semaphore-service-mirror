@@ -413,12 +413,14 @@ func TestDeleteGlobalServiceMultipleClusters(t *testing.T) {
 	}}
 	assertExpectedGlobalServices(ctx, t, expectedSvcs, fakeClient)
 	// Deleting the service from cluster A should only edit the respective label
-	testRunnerA.reconcileGlobalService("test-svc", "remote-ns")
+	err := testRunnerA.reconcileGlobalService("test-svc", "remote-ns")
+	assert.Equal(t, nil, err)
 	expectedSvcs[0].Annotations[globalSvcClustersAnno] = "runnerB"
 	assertExpectedGlobalServices(ctx, t, expectedSvcs, fakeClient)
 
 	// Deleting the service from cluster B should delete the global service
-	testRunnerB.reconcileGlobalService("test-svc", "remote-ns")
+	err = testRunnerB.reconcileGlobalService("test-svc", "remote-ns")
+	assert.Equal(t, nil, err)
 	assertExpectedServices(ctx, t, []TestSvc{}, fakeClient)
 }
 

@@ -170,6 +170,7 @@ func (gr *GlobalRunner) reconcileGlobalService(name, namespace string) error {
 			if err := kube.DeleteService(gr.ctx, gr.client, globalSvcName, gr.namespace); err != nil && !errors.IsNotFound(err) {
 				return fmt.Errorf("deleting service %s/%s: %v", gr.namespace, globalSvcName, err)
 			}
+			return nil // return on successful service deletion, nothing else to do here.
 		}
 	} else if err != nil {
 		return fmt.Errorf("getting remote service: %v", err)
