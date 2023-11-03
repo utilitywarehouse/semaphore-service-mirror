@@ -39,3 +39,11 @@ kind: ServiceAccount
 metadata:
   name: semaphore-service-mirror-remote
   namespace: kube-system
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: semaphore-service-mirror-remote-token
+  annotations:
+    kubernetes.io/service-account.name: semaphore-service-mirror-remote
+type: kubernetes.io/service-account-token

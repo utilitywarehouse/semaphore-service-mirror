@@ -116,13 +116,9 @@ namespaces on the generated name for mirrored service: `73736d`.
 
 The format of the generated name is: `<prefix>-<namespace>-73736d-<name>`.
 
-It's possible for this name to exceed the 63 character limit imposed by Kubernetes.
-To guard against this, a Gatekeeper constraint template is provided in
-[`gatekeeper/semaphore-mirror-name-length`](gatekeeper/semaphore-mirror-name-length)
-which can be used to validate that remote services won't produce mirror names longer
-than the limit.
-
-Refer to the [example](gatekeeper/semaphore-mirror-name-length/example.yaml).
+It's possible for this name to exceed the 63 character limit imposed by
+Kubernetes so the operator should have a Gatekeeper / Kyverno rule to guard
+against exceeding this Service name length.
 
 ## Coredns config example
 
