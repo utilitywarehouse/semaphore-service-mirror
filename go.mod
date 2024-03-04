@@ -1,6 +1,6 @@
 module github.com/utilitywarehouse/semaphore-service-mirror
 
-go 1.22
+go 1.22.0
 
 require (
 	github.com/hashicorp/go-hclog v1.6.2
