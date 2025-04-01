@@ -1,14 +1,14 @@
 module github.com/utilitywarehouse/semaphore-service-mirror
 
 go 1.22.0
-toolchain go1.23.4
+toolchain go1.24.1
 
 require (
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/prometheus/client_golang v1.21.0
 	github.com/stretchr/testify v1.10.0
 	k8s.io/api v0.32.2
-	k8s.io/apimachinery v0.32.2
+	k8s.io/apimachinery v0.32.3
 	k8s.io/client-go v0.32.2
 )
 
