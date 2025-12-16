@@ -53,6 +53,9 @@ Contains configuration needed to manage resources in the local cluster, where
 this operator runs.
 
 * `name`: A name for the local cluster
+* `zones`: A list of the availability zones for the local cluster. This will be
+  used to allow topology aware routing for global services and the values should
+  derive from kuberenetes nodes' `topology.kubernetes.io/zone` label.
 * `kubeConfigPath`: Path to a kube config file to access the local cluster. If
   not specified the operator will try to use in-cluster configuration with the
   pod's service account.
@@ -221,12 +224,15 @@ caller when addressing global services (first hit available endpoints in the
 same cluster). For that purpose, one can use a label to instruct the controller
 to set `service.kubernetes.io/topology-aware-hints=auto` label in the generated
 global service and instruct Kubernetes to use topology hints for routing traffic
-to the service. If this is not set, a dummy value will be used and topology
-aware  routing will not be feasible. The operator also uses the dummy "remote"
-zone value as a hint for endpoits mirrored from remote clusters, to make sure
-that no routing decisions will be made on those and kube-proxy will not complain
-about missing hints. The label to enable the above is configurable via
-`globalSvcTopologyLabel` field in the global configuration.
+to the service. In order for the hints to be effective, the operator reads the
+local configuration `zones` field and uses the list of zones defined there as
+hints for local endpoints. If this is not set, a dummy value will be used and
+topology aware routing will not be feasible. The operator also uses the dummy
+"remote" zone value as a hint for endpoits mirrored from remote clusters, to
+make sure that no routing decisions will be made on those and kube-proxy will
+not complain about missing hints.
+The label to enable the above is configurable via `globalSvcTopologyLabel` field
+in the global configuration.
 
 ### Fungible values
 

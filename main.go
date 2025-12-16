@@ -67,6 +67,8 @@ func main() {
 		log.Logger.Error("Cannot parse config", "err", err)
 		os.Exit(1)
 	}
+	// set DefaultLocalEndpointZones value for topology aware routing
+	setLocalEndpointZones(config.LocalCluster.Zones)
 	// parse strategy label for setting topology aware hints.
 	routingStrategyLabel, err := labels.Parse(config.Global.GlobalSvcRoutingStrategyLabel)
 	if err != nil {

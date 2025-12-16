@@ -55,8 +55,9 @@ type globalConfig struct {
 }
 
 type localClusterConfig struct {
-	Name           string `json:"name"`
-	KubeConfigPath string `json:"kubeConfigPath"`
+	Name           string   `json:"name"`
+	KubeConfigPath string   `json:"kubeConfigPath"`
+	Zones          []string `json:"zones"`
 }
 
 type remoteClusterConfig struct {
@@ -108,6 +109,10 @@ func parseConfig(rawConfig []byte, flagGlobalSvcLabelSelector, flagGlobalSvcRout
 	}
 	if conf.LocalCluster.Name == "" {
 		return nil, fmt.Errorf("Configuration is missing local cluster name")
+	}
+	// If local cluster zones are not set, default to a dummy value, so that kube-proxy does not complain
+	if len(conf.LocalCluster.Zones) == 0 {
+		conf.LocalCluster.Zones = []string{"local"}
 	}
 
 	// Check for mandatory remote config.
