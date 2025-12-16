@@ -304,10 +304,10 @@ func (gr *GlobalRunner) ensureEndpointSliceZones(endpoints []discoveryv1.Endpoin
 		}
 		return es
 	}
-	// For local endpoints set to the actual Endpoint zone
+	// For local endpoints allow all zones as set in config
 	for _, e := range endpoints {
 		e.Hints = &discoveryv1.EndpointHints{
-			ForZones: []discoveryv1.ForZone{discoveryv1.ForZone{Name: *e.Zone}},
+			ForZones: DefaultLocalEndpointZones,
 		}
 		es = append(es, e)
 	}
