@@ -8,12 +8,7 @@
     "endpointSliceSync": true
   },
   "localCluster": {
-    "name": "local",
-    "zones": [
-      "europe-west2-a",
-      "europe-west2-b",
-      "europe-west2-c"
-    ]
+    "name": "local"
   },
   "remoteClusters": [
     {

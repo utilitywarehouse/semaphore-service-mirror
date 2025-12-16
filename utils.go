@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
-	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -16,12 +15,6 @@ const (
 	// Separator is inserted between the namespace and name in the mirror
 	// name to prevent clashes
 	Separator = "73736d"
-)
-
-var (
-	// DefaultLocalEndpointZones holds the configured availability zones for
-	// the local cluster
-	DefaultLocalEndpointZones []discoveryv1.ForZone
 )
 
 // generateMirrorName generates a name for mirrored objects based on the name
@@ -47,12 +40,6 @@ func generateEndpointSliceLabels(baseLabels map[string]string, targetService str
 	labels["kubernetes.io/service-name"] = targetService
 	labels["endpointslice.kubernetes.io/managed-by"] = "semaphore-service-mirror"
 	return labels
-}
-
-func setLocalEndpointZones(zones []string) {
-	for _, z := range zones {
-		DefaultLocalEndpointZones = append(DefaultLocalEndpointZones, discoveryv1.ForZone{Name: z})
-	}
 }
 
 func inSlice(slice []string, val string) (int, bool) {
