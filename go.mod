@@ -6,8 +6,8 @@ require (
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/prometheus/client_golang v1.23.2
 	github.com/stretchr/testify v1.11.1
-	k8s.io/api v0.35.0
-	k8s.io/apimachinery v0.35.0
+	k8s.io/api v0.35.2
+	k8s.io/apimachinery v0.35.2
 	k8s.io/client-go v0.35.0
 )
 
