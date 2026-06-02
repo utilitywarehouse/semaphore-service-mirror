@@ -31,14 +31,14 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
       - name: Login to Quay.io Container Registry
         if: github.actor != 'dependabot[bot]'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: quay.io
           username: utilitywarehouse+drone_ci
           password: ${{ secrets.SYSTEM_QUAY_TOKEN }}
       - name: Build and push Docker image
         if: github.actor != 'dependabot[bot]'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
